@@ -107,19 +107,20 @@
       authSuccessMessage: null,
       authSubmitLoading: false,
 
-      // Recuperación de Contraseña
+      // Modal para solicitar recuperación de contraseña por email
       isForgotPasswordModalOpen: false,
       forgotPasswordEmail: '',
       forgotPasswordLoading: false,
       forgotPasswordError: null,
       forgotPasswordSuccess: null,
 
-      // Restablecimiento de Contraseña (desde link de correo)
+      // Modo de Recuperación de Contraseña Forzado (Obligatorio escribir nueva clave antes de acceder)
+      isPasswordRecoveryMode: false,
       isResetPasswordModalOpen: false,
       resetPasswordNew: '',
+      resetPasswordConfirm: '',
       resetPasswordLoading: false,
       resetPasswordError: null,
-      resetPasswordSuccess: null,
 
       // Navegación y Filtros
       currentTab: 'dashboard', // 'dashboard' | 'calendar' | 'appointments' | 'clients' | 'services' | 'settings'
@@ -143,19 +144,19 @@
       isAppointmentModalOpen: false,
       editingAppointment: null,
       isManageServicesModalOpen: false,
-      editingServiceId: null, // Si se está editando un servicio en particular
+      editingServiceId: null,
 
-      // Modal de Confirmación Genérico
+      // Modal de Confirmación
       confirmModal: {
         isOpen: false,
         title: '',
         message: '',
         confirmText: 'Confirmar',
-        confirmVariant: 'danger', // 'danger' | 'primary'
+        confirmVariant: 'danger',
         onConfirm: null
       },
       
-      // Alertas en tiempo real (10 minutos)
+      // Alertas en tiempo real (10 y 5 minutos)
       upcomingAlerts: [],
       alertedBeepIds: new Set(),
       alarmTriggeredIds: new Set(),
@@ -166,7 +167,7 @@
       syncing: false
     };
 
-    // Servicios iniciales de respaldo por defecto
+    // Servicios de respaldo
     const DEFAULT_SERVICES = [
       { id: 'srv-1', name: 'Consulta / Asesoría Inicial', durationMinutes: 30, price: 10000, category: 'Consultas' },
       { id: 'srv-2', name: 'Atención Profesional Estándar', durationMinutes: 45, price: 16000, category: 'Servicios' },
@@ -250,7 +251,6 @@
       }, 3500);
     }
 
-    // Modal de confirmación estilizado
     function openConfirmModal(title, message, onConfirm, confirmText = 'Eliminar', confirmVariant = 'danger') {
       state.confirmModal = {
         isOpen: true,
@@ -414,9 +414,9 @@
       };
     }
 
-    // 5.1 READ: Carga de turnos desde 'recepcion'
+    // 5.1 READ: Turnos desde 'recepcion'
     async function fetchAppointmentsFromCloud() {
-      if (!supabaseClient || !state.user) return;
+      if (!supabaseClient || !state.user || state.isPasswordRecoveryMode) return;
       state.syncing = true;
       renderSyncIndicator();
 
@@ -428,7 +428,7 @@
 
         if (error) {
           console.error('Error fetching recepcion:', error);
-          showToast('Error al conectar con tabla recepcion: ' + error.message, 'error');
+          showToast('Aviso de conexión: ' + error.message, 'warning');
         } else if (data) {
           state.appointments = data.map(mapRowToAppointment);
           rebuildClientsFromAppointments();
@@ -442,9 +442,9 @@
       }
     }
 
-    // 5.2 READ: Carga de servicios desde la tabla 'servicios'
+    // 5.2 READ: Servicios desde 'servicios'
     async function fetchServicesFromCloud() {
-      if (!supabaseClient || !state.user) return;
+      if (!supabaseClient || !state.user || state.isPasswordRecoveryMode) return;
       try {
         const { data, error } = await supabaseClient
           .from('servicios')
@@ -739,7 +739,7 @@
     // ==========================================
     function startRealTimeAlarmTimer() {
       setInterval(() => {
-        if (!state.user || state.appointments.length === 0) return;
+        if (!state.user || state.appointments.length === 0 || state.isPasswordRecoveryMode) return;
 
         const now = new Date();
         const today = getTodayString();
@@ -776,7 +776,7 @@
 
         state.upcomingAlerts = matchedAlerts;
         renderAlertBanner();
-      }, 30000); // Verificación cada 30 segundos
+      }, 30000);
     }
 
     // ==========================================
@@ -829,12 +829,6 @@
     // ==========================================
     // 8. ENCABEZADO SUPERIOR (TOP HEADER)
     // ==========================================
-    // Mantiene ÚNICAMENTE los botones de acción principales alineados en la esquina superior derecha:
-    // 1. "Nuevo Turno"
-    // 2. "Excel" Exportar
-    // 3. Campana de Alarma/Notificación (prueba timbre y muestra alertas)
-    // 4. Indicador de Usuario/Email Conectado
-    // 5. "Cerrar Sesión" (Logout)
     function renderTopHeader() {
       const email = state.user?.email || 'Usuario';
       const titles = {
@@ -998,7 +992,7 @@
               </div>
 
               <!-- Cerrar en móvil -->
-              <button onclick="toggleMobileSidebar()" class="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">
+              <button onclick="toggleMobileSidebar()" class="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">
                 <i data-lucide="x" class="w-5 h-5"></i>
               </button>
             </div>
@@ -1072,7 +1066,7 @@
     }
 
     // ==========================================
-    // 10. VISTAS PRINCIPALES (DASHBOARD, CALENDARIO, TURNOS, CLIENTES, SERVICIOS, CONFIG)
+    // 10. VISTAS PRINCIPALES
     // ==========================================
     function renderMainView() {
       const container = document.getElementById('mainContentArea');
@@ -1125,7 +1119,6 @@
 
       return `
         <div class="space-y-6">
-          <!-- Tarjetas KPI / Métricas -->
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
               <div class="flex items-center justify-between text-slate-500 mb-2">
@@ -1164,7 +1157,6 @@
             </div>
           </div>
 
-          <!-- Turnos del Día -->
           <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
             <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <div>
@@ -1228,7 +1220,7 @@
       `;
     }
 
-    // 10.2 LISTA DE TURNOS (TABLA COMPLETA CON FILTROS Y ACCIONES)
+    // 10.2 LISTA DE TURNOS
     function renderAppointmentsView() {
       let filtered = [...state.appointments];
       const today = getTodayString();
@@ -1250,7 +1242,6 @@
 
       return `
         <div class="space-y-4">
-          <!-- Barra de Búsqueda y Filtros Rápidos -->
           <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
             <div class="relative w-full sm:w-80">
               <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
@@ -1263,7 +1254,6 @@
               />
             </div>
 
-            <!-- Filtros de Estado -->
             <div class="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
               ${['all', 'today', 'pendiente', 'confirmado', 'cancelado'].map(st => `
                 <button 
@@ -1280,7 +1270,6 @@
             </div>
           </div>
 
-          <!-- Tabla de Turnos -->
           <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
             <div class="overflow-x-auto">
               <table class="w-full text-left text-xs">
@@ -1452,7 +1441,7 @@
       `;
     }
 
-    // 10.5 CATÁLOGO DE SERVICIOS (CON CRUD COMPLETO: AGREGAR, EDITAR, ELIMINAR)
+    // 10.5 CATÁLOGO DE SERVICIOS
     function renderServicesCatalogView() {
       return `
         <div class="space-y-4">
@@ -1539,7 +1528,7 @@
     }
 
     // ==========================================
-    // 11. MODAL "NUEVO TURNO" (SERVICIO DINÁMICO Y EDITABLE)
+    // 11. MODAL "NUEVO TURNO"
     // ==========================================
     function renderAppointmentModal() {
       if (!state.isAppointmentModalOpen) return '';
@@ -1564,7 +1553,6 @@
       return `
         <div class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs overflow-y-auto">
           <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full border border-slate-200 overflow-hidden flex flex-col my-4 max-h-[94vh]">
-            <!-- Encabezado Modal -->
             <div class="bg-slate-900 px-6 py-4 flex items-center justify-between text-white shrink-0">
               <div class="flex items-center gap-2.5">
                 <i data-lucide="calendar" class="w-5 h-5 text-blue-400"></i>
@@ -1575,9 +1563,7 @@
               </button>
             </div>
 
-            <!-- Formulario -->
             <form onsubmit="handleAppointmentFormSubmit(event)" class="p-6 overflow-y-auto space-y-4 text-xs">
-              <!-- Cliente -->
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label class="block font-bold text-slate-700 mb-1">Nombre del Cliente *</label>
@@ -1589,7 +1575,6 @@
                 </div>
               </div>
 
-              <!-- CAMPO SERVICIO DINÁMICO Y EDITABLE + BOTÓN MANAGE SERVICES (+) -->
               <div>
                 <div class="flex items-center justify-between mb-1">
                   <label class="font-bold text-slate-700 flex items-center gap-1">
@@ -1600,7 +1585,6 @@
                 </div>
 
                 <div class="flex items-center gap-2">
-                  <!-- Input editable para el nombre del servicio -->
                   <div class="relative flex-1">
                     <input 
                       type="text" 
@@ -1613,7 +1597,6 @@
                     />
                   </div>
 
-                  <!-- Dropdown selector de servicios del catálogo -->
                   <select 
                     id="modalServiceSelect" 
                     onchange="onServiceSelectChange(this.value)"
@@ -1627,12 +1610,11 @@
                     `).join('')}
                   </select>
 
-                  <!-- BOTÓN "MANAGE SERVICES" (+) -->
                   <button 
                     type="button" 
                     onclick="openManageServicesModal()"
                     class="flex items-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-3 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0"
-                    title="Administrar catálogo de servicios (Agregar, editar o eliminar)"
+                    title="Administrar catálogo de servicios"
                   >
                     <i data-lucide="plus" class="w-4 h-4 stroke-[3]"></i>
                     <span class="hidden sm:inline">Servicios</span>
@@ -1640,7 +1622,6 @@
                 </div>
               </div>
 
-              <!-- Fecha y Horario -->
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <label class="block font-bold text-slate-700 mb-1">Fecha *</label>
@@ -1656,7 +1637,6 @@
                 </div>
               </div>
 
-              <!-- Finanzas y Estado -->
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                 <div>
                   <label class="block font-bold text-slate-700 mb-1">Precio Total ($)</label>
@@ -1683,7 +1663,6 @@
                 <textarea id="modalNotes" rows="2" placeholder="Observaciones adicionales del turno..." class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs text-slate-900">${app.notes || ''}</textarea>
               </div>
 
-              <!-- Botones Modal -->
               <div class="pt-3 border-t border-slate-200 flex items-center justify-between">
                 <div>
                   ${isEdit ? `
@@ -1760,7 +1739,7 @@
     }
 
     // ==========================================
-    // 12. MODAL "MANAGE SERVICES" (AGREGAR, EDITAR Y ELIMINAR SERVICIOS)
+    // 12. MODAL "MANAGE SERVICES"
     // ==========================================
     function renderManageServicesModal() {
       if (!state.isManageServicesModalOpen) return '';
@@ -1785,7 +1764,6 @@
             </div>
 
             <div class="p-5 space-y-4 overflow-y-auto text-xs">
-              <!-- Formulario Agregar / Editar Servicio -->
               <form onsubmit="handleManageServiceSubmit(event)" class="${editingService ? 'bg-amber-50/70 border-amber-200' : 'bg-blue-50/60 border-blue-100'} p-4 rounded-xl border space-y-3">
                 <div class="flex items-center justify-between">
                   <h4 class="font-bold ${editingService ? 'text-amber-900' : 'text-blue-900'} flex items-center gap-1.5">
@@ -1841,7 +1819,6 @@
                 </button>
               </form>
 
-              <!-- Lista de Servicios Actuales -->
               <div class="space-y-2">
                 <h4 class="font-bold text-slate-700">Servicios en Catálogo (${state.services.length})</h4>
                 <div id="manageServicesList" class="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden max-h-56 overflow-y-auto">
@@ -2005,7 +1982,7 @@
     // ==========================================
     function renderAuthScreen() {
       return `
-        <div class="min-h-screen bg-slate-100 flex flex-col justify-center items-center px-4 py-8 relative">
+        <div id="login-screen" class="min-h-screen bg-slate-100 flex flex-col justify-center items-center px-4 py-8 relative ${state.isPasswordRecoveryMode ? 'hidden' : ''}">
           <div class="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-200/80 overflow-hidden">
             <!-- Cabecera -->
             <div class="bg-slate-900 text-white p-7 text-center">
@@ -2016,7 +1993,7 @@
               <p class="text-xs text-slate-300 mt-1">Gestión de turnos con base de datos en la nube (Supabase)</p>
             </div>
 
-            <!-- Pestañas Claras: Iniciar Sesión vs Registrarse -->
+            <!-- Pestañas: Iniciar Sesión vs Registrarse -->
             <div class="flex border-b border-slate-200 bg-slate-50/60">
               <button 
                 onclick="setAuthMode('login')"
@@ -2042,7 +2019,7 @@
 
             <!-- Formulario de Auth -->
             <form onsubmit="handleAuthSubmit(event)" class="p-6 sm:p-7 space-y-4">
-              <!-- Mensaje de Error de Alto Nivel -->
+              <!-- Mensaje de Error -->
               ${state.authErrorMessage ? `
                 <div class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5">
                   <i data-lucide="alert-circle" class="w-4 h-4 text-rose-600 shrink-0 mt-0.5"></i>
@@ -2075,7 +2052,6 @@
                   ${state.authMode === 'signup' ? `
                     <span class="text-[10px] text-slate-400">Mínimo 6 caracteres</span>
                   ` : `
-                    <!-- ENLACE VISIBLE Y ACCESIBLE: ¿Olvidaste tu contraseña? -->
                     <button 
                       type="button" 
                       onclick="openForgotPasswordModal()" 
@@ -2111,16 +2087,13 @@
           </div>
           <p class="mt-6 text-xs text-slate-500 text-center">Conectado con Supabase (tablas <code>recepcion</code> y <code>servicios</code>)</p>
 
-          <!-- MODAL DE RECUPERACIÓN DE CONTRASEÑA -->
+          <!-- MODAL DE SOLICITUD DE ENLACE DE RECUPERACIÓN -->
           ${renderForgotPasswordModal()}
-
-          <!-- MODAL DE RESTABLECIMIENTO DE NUEVA CONTRASEÑA (DESDE ENLACE DE EMAIL) -->
-          ${renderResetPasswordModal()}
         </div>
       `;
     }
 
-    // 14.1 MODAL "¿OLVIDASTE TU CONTRASEÑA?" (SUPABASE PASSWORD RESET)
+    // 14.1 MODAL "¿OLVIDASTE TU CONTRASEÑA?" (SOLICITA EL CORREO)
     function renderForgotPasswordModal() {
       if (!state.isForgotPasswordModalOpen) return '';
 
@@ -2149,7 +2122,6 @@
                 Ingresá tu correo electrónico registrado. Te enviaremos un enlace oficial de Supabase Auth para restablecer tu contraseña de forma segura.
               </p>
 
-              <!-- Banner de Éxito -->
               ${state.forgotPasswordSuccess ? `
                 <div class="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-start gap-2.5">
                   <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-600 shrink-0 mt-0.5"></i>
@@ -2160,10 +2132,9 @@
                 </div>
               ` : ''}
 
-              <!-- Banner de Error -->
               ${state.forgotPasswordError ? `
                 <div class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-start gap-2.5">
-                  <i data-lucide="alert-circle" class="w-5 h-5 text-rose-600 shrink-0 mt-0.5"></i>
+                  <i data-lucide="alert-circle" class="w-4 h-4 text-rose-600 shrink-0 mt-0.5"></i>
                   <div>
                     <p class="font-bold">Error al enviar</p>
                     <p class="mt-0.5 leading-snug">${state.forgotPasswordError}</p>
@@ -2241,7 +2212,6 @@
       renderApp();
     }
 
-    // Ejecución real de supabaseClient.auth.resetPasswordForEmail(email)
     async function handleForgotPasswordSubmit(e) {
       e.preventDefault();
       const inputEl = document.getElementById('forgotEmailInput');
@@ -2282,63 +2252,128 @@
       }
     }
 
-    // 14.2 MODAL DE RESTABLECIMIENTO (CUANDO VIENE DEL LINK DE EMAIL CON #type=recovery)
+    // ==========================================
+    // 14.2 MODAL OBLIGATORIO: "ESTABLECER NUEVA CONTRASEÑA"
+    // ==========================================
+    // El usuario DEBE ingresar su nueva contraseña y confirmarla antes de poder acceder a la app.
+    // El dashboard y el login screen permanecen ocultos mientras este modal esté activo.
     function renderResetPasswordModal() {
-      if (!state.isResetPasswordModalOpen) return '';
+      const isHidden = !state.isPasswordRecoveryMode && !state.isResetPasswordModalOpen;
 
       return `
-        <div class="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+        <div id="reset-password-modal" class="${isHidden ? 'hidden' : 'fixed inset-0 z-90 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200'}">
           <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden flex flex-col">
-            <div class="bg-slate-900 px-6 py-5 text-white">
-              <h3 class="font-bold text-base text-white">Restablecer tu Contraseña</h3>
-              <p class="text-xs text-slate-400 mt-0.5">Ingresá tu nueva clave para actualizar tu acceso</p>
+            <!-- Header -->
+            <div class="bg-slate-900 px-6 py-6 text-white text-center">
+              <div class="w-14 h-14 rounded-2xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center mx-auto mb-3 text-blue-400">
+                <i data-lucide="lock" class="w-7 h-7"></i>
+              </div>
+              <h3 class="font-extrabold text-lg text-white">Establecer Nueva Contraseña</h3>
+              <p class="text-xs text-slate-300 mt-1 max-w-xs mx-auto">
+                Para tu seguridad, debes definir una nueva contraseña antes de ingresar a la aplicación.
+              </p>
             </div>
 
-            <form onsubmit="handleUpdatePasswordSubmit(event)" class="p-6 space-y-4 text-xs">
+            <!-- Formulario -->
+            <form onsubmit="handleUpdatePasswordSubmit(event)" class="p-6 sm:p-7 space-y-4 text-xs">
               ${state.resetPasswordError ? `
-                <div class="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
-                  ${state.resetPasswordError}
-                </div>
-              ` : ''}
-
-              ${state.resetPasswordSuccess ? `
-                <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs">
-                  ${state.resetPasswordSuccess}
+                <div class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
+                  <i data-lucide="alert-circle" class="w-4 h-4 text-rose-600 shrink-0 mt-0.5"></i>
+                  <p class="leading-snug">${state.resetPasswordError}</p>
                 </div>
               ` : ''}
 
               <div>
-                <label class="block font-bold text-slate-700 mb-1.5">Nueva Contraseña (mínimo 6 caracteres)</label>
-                <input 
-                  type="password" 
-                  id="newPasswordInput" 
-                  required 
-                  minlength="6"
-                  placeholder="••••••••"
-                  class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <label class="block font-bold text-slate-700 mb-1.5">Nueva Contraseña *</label>
+                <div class="relative">
+                  <input 
+                    type="password" 
+                    id="newPasswordInput" 
+                    required 
+                    minlength="6"
+                    placeholder="Mínimo 6 caracteres"
+                    class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">Usa al menos 6 caracteres seguros.</p>
+              </div>
+
+              <div>
+                <label class="block font-bold text-slate-700 mb-1.5">Confirmar Nueva Contraseña *</label>
+                <div class="relative">
+                  <input 
+                    type="password" 
+                    id="confirmPasswordInput" 
+                    required 
+                    minlength="6"
+                    placeholder="Repite la contraseña"
+                    class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
               </div>
 
               <button 
                 type="submit" 
+                id="submitNewPasswordBtn"
                 ${state.resetPasswordLoading ? 'disabled' : ''}
-                class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer"
+                class="w-full py-3.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed mt-2"
               >
-                ${state.resetPasswordLoading ? 'Actualizando...' : 'Guardar Nueva Contraseña'}
+                ${state.resetPasswordLoading ? `
+                  <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                  <span>Actualizando contraseña...</span>
+                ` : `
+                  <span>Guardar Nueva Contraseña</span>
+                  <i data-lucide="check" class="w-4 h-4"></i>
+                `}
               </button>
+
+              <div class="text-center pt-2">
+                <button 
+                  type="button" 
+                  onclick="cancelPasswordRecoveryFlow()" 
+                  class="text-xs text-slate-500 hover:text-slate-800 font-semibold cursor-pointer"
+                >
+                  Cancelar y volver al inicio de sesión
+                </button>
+              </div>
             </form>
           </div>
         </div>
       `;
     }
 
+    // Cancelar recuperación y desloguear sesión temporal
+    async function cancelPasswordRecoveryFlow() {
+      if (supabaseClient) {
+        await supabaseClient.auth.signOut();
+      }
+      state.isPasswordRecoveryMode = false;
+      state.isResetPasswordModalOpen = false;
+      state.user = null;
+      state.resetPasswordError = null;
+      window.location.hash = '';
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+      renderApp();
+    }
+
+    // Envío del formulario de nueva contraseña
     async function handleUpdatePasswordSubmit(e) {
       e.preventDefault();
-      const input = document.getElementById('newPasswordInput');
-      const newPassword = input ? input.value : '';
+      const passInput = document.getElementById('newPasswordInput');
+      const confirmInput = document.getElementById('confirmPasswordInput');
+      const newPasswordValue = passInput ? passInput.value : '';
+      const confirmPasswordValue = confirmInput ? confirmInput.value : '';
 
-      if (!newPassword || newPassword.length < 6) {
+      if (!newPasswordValue || newPasswordValue.length < 6) {
         state.resetPasswordError = 'La contraseña debe tener al menos 6 caracteres.';
+        renderApp();
+        return;
+      }
+
+      if (newPasswordValue !== confirmPasswordValue) {
+        state.resetPasswordError = 'Las contraseñas no coinciden. Por favor verifícalas.';
         renderApp();
         return;
       }
@@ -2349,18 +2384,38 @@
 
       try {
         if (!supabaseClient) throw new Error('Cliente Supabase no disponible.');
-        const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+
+        // Actualización oficial de contraseña con Supabase Auth
+        const { data, error } = await supabaseClient.auth.updateUser({
+          password: newPasswordValue
+        });
+
         if (error) throw error;
 
-        state.resetPasswordSuccess = '¡Contraseña actualizada exitosamente! Ingresando a tu cuenta...';
-        showToast('Contraseña restablecida con éxito', 'success');
-        setTimeout(() => {
-          state.isResetPasswordModalOpen = false;
-          window.location.hash = '';
-          renderApp();
-        }, 1800);
+        // Éxito: Notificar, cerrar sesión temporal de recuperación y redirigir al login
+        showToast('Contraseña actualizada correctamente', 'success');
+
+        await supabaseClient.auth.signOut();
+
+        // Limpiar URL hash y banderas de recuperación
+        state.isPasswordRecoveryMode = false;
+        state.isResetPasswordModalOpen = false;
+        state.user = null;
+        state.authMode = 'login';
+        state.authSuccessMessage = '¡Contraseña actualizada correctamente! Ingresá a continuación con tu nueva contraseña.';
+        state.authErrorMessage = null;
+        state.resetPasswordError = null;
+
+        window.location.hash = '';
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+
+        renderApp();
       } catch (err) {
+        console.error('Error al actualizar contraseña:', err);
         state.resetPasswordError = err.message || 'Error al actualizar contraseña.';
+        renderApp();
       } finally {
         state.resetPasswordLoading = false;
         renderApp();
@@ -2422,7 +2477,7 @@
       } finally {
         state.authSubmitLoading = false;
         renderApp();
-        if (state.user) {
+        if (state.user && !state.isPasswordRecoveryMode) {
           await fetchServicesFromCloud();
           await fetchAppointmentsFromCloud();
         }
@@ -2500,14 +2555,35 @@
       const appContainer = document.getElementById('app');
       if (!appContainer) return;
 
-      if (!state.user) {
-        appContainer.innerHTML = renderAuthScreen();
+      // SI ESTÁ EN MODO DE RECUPERACIÓN DE CONTRASEÑA:
+      // Mantener dashboard y login screen ocultos y mostrar ÚNICAMENTE el modal "Establecer Nueva Contraseña"
+      if (state.isPasswordRecoveryMode) {
+        appContainer.innerHTML = `
+          <div class="min-h-screen bg-slate-900 flex items-center justify-center relative overflow-hidden">
+            <div id="login-screen" class="hidden"></div>
+            <div id="app-dashboard" class="hidden"></div>
+            ${renderResetPasswordModal()}
+          </div>
+        `;
         if (window.lucide) window.lucide.createIcons();
         return;
       }
 
+      // SI NO HAY USUARIO AUTENTICADO:
+      if (!state.user) {
+        appContainer.innerHTML = `
+          ${renderAuthScreen()}
+          <div id="app-dashboard" class="hidden"></div>
+          ${renderResetPasswordModal()}
+        `;
+        if (window.lucide) window.lucide.createIcons();
+        return;
+      }
+
+      // SI HAY USUARIO AUTENTICADO NORMALMENTE (DASHBOARD):
       appContainer.innerHTML = `
-        <div class="min-h-screen bg-slate-100/70 text-slate-900 flex font-sans">
+        <div id="login-screen" class="hidden"></div>
+        <div id="app-dashboard" class="min-h-screen bg-slate-100/70 text-slate-900 flex font-sans">
           <!-- BARRA LATERAL IZQUIERDA (DESKTOP) -->
           <aside class="hidden lg:block w-64 xl:w-72 shrink-0 h-screen sticky top-0 z-30 shadow-xl">
             ${renderLeftSidebar()}
@@ -2546,6 +2622,7 @@
         <div id="manageServicesModalContainer">${renderManageServicesModal()}</div>
         <div id="alarmModalContainer">${renderAlarmModal()}</div>
         <div id="confirmModalContainer">${renderConfirmModal()}</div>
+        ${renderResetPasswordModal()}
       `;
 
       renderMainView();
@@ -2634,17 +2711,42 @@
     }
 
     // ==========================================
-    // 17. INICIALIZACIÓN DE LA APLICACIÓN
+    // 17. INICIALIZACIÓN DE LA APLICACIÓN & AUTH LISTENERS
     // ==========================================
     window.addEventListener('DOMContentLoaded', async () => {
-      // Detección de token de recuperación de contraseña en URL
+      // Detección inicial de token de recuperación de contraseña en el hash de la URL
       if (window.location.hash && window.location.hash.includes('type=recovery')) {
+        state.isPasswordRecoveryMode = true;
         state.isResetPasswordModalOpen = true;
       }
 
-      // Escuchar sesión Supabase
+      // Escuchar sesión y cambios de autenticación de Supabase
       if (supabaseClient) {
-        supabaseClient.auth.getSession().then(({ data: { session } }) => {
+        // 1. AUTH STATE LISTENER FOR PASSWORD RECOVERY
+        supabaseClient.auth.onAuthStateChange(async (event, session) => {
+          if (event === 'PASSWORD_RECOVERY') {
+            // No redirigir al dashboard: mostrar modal de cambio de contraseña inmediatamente
+            // y mantener el dashboard y el login ocultos
+            state.isPasswordRecoveryMode = true;
+            state.isResetPasswordModalOpen = true;
+            state.authLoading = false;
+            renderApp();
+
+            const resetModal = document.getElementById('reset-password-modal');
+            const loginScreen = document.getElementById('login-screen');
+            const appDashboard = document.getElementById('app-dashboard');
+
+            if (resetModal) resetModal.classList.remove('hidden');
+            if (loginScreen) loginScreen.classList.add('hidden');
+            if (appDashboard) appDashboard.classList.add('hidden');
+            return;
+          }
+
+          // Si el usuario está en proceso de recuperación, no permitir auto-login al dashboard
+          if (state.isPasswordRecoveryMode) {
+            return;
+          }
+
           state.user = session?.user ?? null;
           state.authLoading = false;
           renderApp();
@@ -2655,9 +2757,12 @@
           }
         });
 
-        supabaseClient.auth.onAuthStateChange((event, session) => {
-          if (event === 'PASSWORD_RECOVERY') {
-            state.isResetPasswordModalOpen = true;
+        // Obtener sesión inicial
+        supabaseClient.auth.getSession().then(({ data: { session } }) => {
+          if (state.isPasswordRecoveryMode) {
+            state.authLoading = false;
+            renderApp();
+            return;
           }
 
           state.user = session?.user ?? null;
@@ -2674,7 +2779,9 @@
         supabaseClient
           .channel('realtime_recepcion_channel')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'recepcion' }, () => {
-            fetchAppointmentsFromCloud();
+            if (!state.isPasswordRecoveryMode && state.user) {
+              fetchAppointmentsFromCloud();
+            }
           })
           .subscribe();
 
@@ -2682,7 +2789,9 @@
         supabaseClient
           .channel('realtime_servicios_channel')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'servicios' }, () => {
-            fetchServicesFromCloud();
+            if (!state.isPasswordRecoveryMode && state.user) {
+              fetchServicesFromCloud();
+            }
           })
           .subscribe();
       } else {
