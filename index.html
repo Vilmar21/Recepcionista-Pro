@@ -61,7 +61,10 @@
   <!-- Supabase JS CDN v2 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <!-- SheetJS (xlsx) CDN -->
+  <!-- ExcelJS CDN (Exportación estilizada, colores, bordes y formatos contables) -->
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+
+  <!-- SheetJS (xlsx) CDN como respaldo -->
   <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 
   <!-- Lucide Icons CDN -->
@@ -887,29 +890,309 @@
     }
 
     // ==========================================
-    // 7. EXPORTACIÓN A EXCEL CON SHEETJS (.xlsx)
+    // 7. EXPORTACIÓN A EXCEL (.xlsx) CON EXCELJS (ESTILOS, COLORES Y TOTALES)
     // ==========================================
-    function exportAppointmentsToExcel() {
-      if (!window.XLSX) {
-        showToast('SheetJS aún se está cargando. Por favor reintenta en unos segundos.', 'warning');
-        return;
-      }
-
+    async function exportAppointmentsToExcel() {
       if (state.appointments.length === 0) {
         showToast('No hay turnos registrados para exportar.', 'warning');
         return;
       }
 
+      // Si ExcelJS no estuviera disponible, usar fallback de SheetJS
+      if (!window.ExcelJS) {
+        if (window.XLSX) {
+          exportAppointmentsWithSheetJS();
+          return;
+        }
+        showToast('El módulo de exportación se está cargando. Por favor reintenta en unos instantes.', 'warning');
+        return;
+      }
+
+      showToast('Generando planilla Excel profesional con estilos...', 'info');
+
+      try {
+        const workbook = new window.ExcelJS.Workbook();
+        workbook.creator = 'Recepcionista Pro';
+        workbook.lastModifiedBy = state.settings.businessName || 'Recepcionista Pro';
+        workbook.created = new Date();
+        workbook.modified = new Date();
+
+        const worksheet = workbook.addWorksheet('Turnos y Recepción', {
+          views: [{ showGridLines: true }]
+        });
+
+        // 1. Columnas y encabezados
+        worksheet.columns = [
+          { header: 'Fecha', key: 'fecha', width: 14 },
+          { header: 'Hora', key: 'hora', width: 12 },
+          { header: 'Cliente / Paciente', key: 'cliente', width: 28 },
+          { header: 'Teléfono (WhatsApp)', key: 'telefono', width: 20 },
+          { header: 'Email', key: 'email', width: 26 },
+          { header: 'Servicio Solicitado', key: 'servicio', width: 26 },
+          { header: 'Precio Total ($)', key: 'precio', width: 18 },
+          { header: 'Seña ($)', key: 'sena', width: 16 },
+          { header: 'Total Cobrado ($)', key: 'cobrado', width: 18 },
+          { header: 'Saldo Pendiente ($)', key: 'saldo', width: 18 },
+          { header: 'Medio de Pago', key: 'medioPago', width: 18 },
+          { header: 'Estado', key: 'estado', width: 16 },
+          { header: 'Notas / Observaciones', key: 'notas', width: 32 }
+        ];
+
+        // 2. Fila de Encabezado: Azul Marino Oscuro (#1E293B) con texto blanco en negrita
+        const headerRow = worksheet.getRow(1);
+        headerRow.height = 30;
+        headerRow.eachCell((cell) => {
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF1E293B' } // Navy Blue #1E293B
+          };
+          cell.font = {
+            name: 'Segoe UI',
+            size: 11,
+            bold: true,
+            color: { argb: 'FFFFFFFF' } // Blanco
+          };
+          cell.alignment = {
+            vertical: 'middle',
+            horizontal: 'center',
+            wrapText: false
+          };
+          cell.border = {
+            top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+            bottom: { style: 'medium', color: { argb: 'FF0F172A' } },
+            right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+          };
+        });
+
+        const thinBorder = {
+          top: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+        };
+
+        let totalPrecio = 0;
+        let totalSena = 0;
+        let totalCobrado = 0;
+        let totalSaldo = 0;
+
+        // 3. Filas de datos con Zebra Striping, formatos contables y badges de estado
+        state.appointments.forEach((app, index) => {
+          const priceVal = Number(app.price) || 0;
+          const depositVal = Number(app.deposit) || 0;
+          const paidVal = Number(app.amountPaid) || depositVal;
+          const balanceVal = Math.max(0, priceVal - paidVal);
+
+          totalPrecio += priceVal;
+          totalSena += depositVal;
+          totalCobrado += paidVal;
+          totalSaldo += balanceVal;
+
+          const rawStatus = (app.status || 'pendiente').toLowerCase().trim();
+          const displayStatus = rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1);
+
+          const row = worksheet.addRow({
+            fecha: app.date || '',
+            hora: app.startTime ? `${app.startTime} hs` : '',
+            cliente: app.clientName || 'Sin especificar',
+            telefono: app.clientPhone || '',
+            email: app.clientEmail || '',
+            servicio: app.serviceName || '',
+            precio: priceVal,
+            sena: depositVal,
+            cobrado: paidVal,
+            saldo: balanceVal,
+            medioPago: app.paymentMethod || 'Efectivo',
+            estado: displayStatus,
+            notas: app.notes || ''
+          });
+
+          row.height = 22;
+          const isEvenRow = index % 2 === 1; // Alternancia para zebra striping
+
+          row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+            cell.border = thinBorder;
+            cell.font = { name: 'Segoe UI', size: 10, color: { argb: 'FF1E293B' } };
+
+            // Zebra Striping suave (#F8FAFC en filas alternadas)
+            if (isEvenRow) {
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFF8FAFC' } // Soft light blue/gray #F8FAFC
+              };
+            } else {
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: 'FFFFFFFF' }
+              };
+            }
+
+            // Formatos específicos según columna
+            if (colNumber === 1 || colNumber === 2) {
+              // Fechas y Horas centradas
+              cell.alignment = { vertical: 'middle', horizontal: 'center' };
+            } else if (colNumber === 3 || colNumber === 5 || colNumber === 6 || colNumber === 13) {
+              // Texto general a la izquierda
+              cell.alignment = { vertical: 'middle', horizontal: 'left' };
+            } else if (colNumber === 4 || colNumber === 11) {
+              // Teléfono y Medio de pago centrados
+              cell.alignment = { vertical: 'middle', horizontal: 'center' };
+            } else if (colNumber >= 7 && colNumber <= 10) {
+              // Valores Monetarios ($#,##0.00) alineados a la derecha
+              cell.numFmt = '"$"#,##0.00';
+              cell.alignment = { vertical: 'middle', horizontal: 'right' };
+            } else if (colNumber === 12) {
+              // Columna Estado con badges y colores condicionales
+              cell.alignment = { vertical: 'middle', horizontal: 'center' };
+              let badgeFill = 'FFF1F5F9';
+              let badgeText = 'FF475569';
+
+              if (rawStatus === 'pendiente') {
+                badgeFill = 'FFFEF08A'; // Soft Yellow #FEF08A
+                badgeText = 'FF854D0E';
+              } else if (rawStatus === 'confirmado') {
+                badgeFill = 'FFBFDBFE'; // Soft Blue #BFDBFE
+                badgeText = 'FF1E40AF';
+              } else if (rawStatus === 'completado') {
+                badgeFill = 'FFBBF7D0'; // Soft Green #BBF7D0
+                badgeText = 'FF166534';
+              } else if (rawStatus === 'cancelado' || rawStatus === 'ausente') {
+                badgeFill = 'FFFECACA'; // Soft Red #FECACA
+                badgeText = 'FF991B1B';
+              }
+
+              cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: badgeFill }
+              };
+              cell.font = {
+                name: 'Segoe UI',
+                size: 10,
+                bold: true,
+                color: { argb: badgeText }
+              };
+            }
+          });
+        });
+
+        // 4. Fila de Totales al final con texto en negrita, borde superior simple y doble borde inferior
+        const totalsRow = worksheet.addRow({
+          fecha: 'TOTALES',
+          hora: `${state.appointments.length} turnos`,
+          cliente: '',
+          telefono: '',
+          email: '',
+          servicio: '',
+          precio: totalPrecio,
+          sena: totalSena,
+          cobrado: totalCobrado,
+          saldo: totalSaldo,
+          medioPago: '',
+          estado: '',
+          notas: ''
+        });
+
+        totalsRow.height = 26;
+        const totalsBorder = {
+          top: { style: 'thin', color: { argb: 'FF64748B' } },
+          bottom: { style: 'double', color: { argb: 'FF1E293B' } }, // Doble borde inferior
+          left: { style: 'thin', color: { argb: 'FFE2E8F0' } },
+          right: { style: 'thin', color: { argb: 'FFE2E8F0' } }
+        };
+
+        totalsRow.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          cell.border = totalsBorder;
+          cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF1F5F9' } // Resalte en gris suave
+          };
+          cell.font = {
+            name: 'Segoe UI',
+            size: 11,
+            bold: true,
+            color: { argb: 'FF0F172A' }
+          };
+
+          if (colNumber === 1 || colNumber === 2) {
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          } else if (colNumber >= 7 && colNumber <= 10) {
+            cell.numFmt = '"$"#,##0.00';
+            cell.alignment = { vertical: 'middle', horizontal: 'right' };
+          } else {
+            cell.alignment = { vertical: 'middle', horizontal: 'left' };
+          }
+        });
+
+        // 5. Auto-ajuste dinámico del ancho de columnas para evitar recortes
+        worksheet.columns.forEach((column) => {
+          let maxLen = column.header ? column.header.length : 12;
+          column.eachCell({ includeEmpty: true }, (cell) => {
+            let val = cell.value;
+            if (val !== null && val !== undefined) {
+              let str = '';
+              if (typeof val === 'number') {
+                str = '$' + val.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+              } else if (typeof val === 'object' && val.text) {
+                str = val.text;
+              } else {
+                str = String(val);
+              }
+              if (str.length > maxLen) {
+                maxLen = str.length;
+              }
+            }
+          });
+          column.width = Math.max(maxLen + 4, 13);
+        });
+
+        // 6. Generación del buffer y descarga directa en el navegador
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        });
+        const todayStr = getTodayString();
+        const fileName = `Recepcionista_Pro_${todayStr}.xlsx`;
+
+        const downloadUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+
+        showToast('Planilla Excel con diseño profesional (.xlsx) descargada con éxito', 'success');
+      } catch (err) {
+        console.error('Error al generar Excel con ExcelJS:', err);
+        exportAppointmentsWithSheetJS();
+      }
+    }
+
+    // Respaldo de exportación con SheetJS
+    function exportAppointmentsWithSheetJS() {
+      if (!window.XLSX) {
+        showToast('No fue posible exportar. Por favor revisa tu conexión a internet.', 'warning');
+        return;
+      }
       const rows = state.appointments.map(app => {
         const balance = Math.max(0, app.price - (app.amountPaid || app.deposit || 0));
         return {
-          'Fecha / Hora': `${app.date} ${app.startTime}hs`,
+          'Fecha': app.date,
+          'Hora': app.startTime,
           'Visitante / Cliente': app.clientName || 'Sin especificar',
           'Teléfono (WhatsApp)': app.clientPhone || '',
           'Email': app.clientEmail || '',
           'Servicio Solicitado': app.serviceName || '',
           'Precio Total ($ ARS)': app.price,
-          'Total Cobrado ($ ARS)': app.amountPaid,
+          'Seña ($ ARS)': app.deposit || 0,
+          'Total Cobrado ($ ARS)': app.amountPaid || 0,
           'Saldo Pendiente ($ ARS)': balance,
           'Medio de Pago': app.paymentMethod || 'Efectivo',
           'Estado': app.status,
@@ -918,16 +1201,13 @@
       });
 
       const worksheet = XLSX.utils.json_to_sheet(rows);
-
       worksheet['!cols'] = [
-        { wch: 22 }, { wch: 26 }, { wch: 20 }, { wch: 24 },
-        { wch: 28 }, { wch: 18 }, { wch: 18 }, { wch: 18 },
-        { wch: 18 }, { wch: 15 }, { wch: 35 }
+        { wch: 14 }, { wch: 12 }, { wch: 26 }, { wch: 20 },
+        { wch: 24 }, { wch: 26 }, { wch: 18 }, { wch: 16 },
+        { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 16 }, { wch: 32 }
       ];
-
       const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Recepción');
-
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Turnos');
       const todayStr = getTodayString();
       XLSX.writeFile(workbook, `Recepcionista_Pro_${todayStr}.xlsx`);
       showToast('Archivo Excel descargado con éxito', 'success');
