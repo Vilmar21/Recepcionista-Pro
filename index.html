@@ -1,21 +1,2698 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Recepcionista Pro</title>
-    <meta name="description" content="Gestión integral de turnos, clientes, servicios, pagos y mensajes de WhatsApp para profesionales y pequeños negocios en Argentina sin costo mensual." />
-    <meta property="og:title" content="Recepcionista Pro" />
-    <meta property="og:description" content="Gestión integral de turnos, clientes, servicios, pagos y mensajes de WhatsApp para profesionales y pequeños negocios en Argentina sin costo mensual." />
-    <meta property="og:type" content="website" />
-    <link rel="icon" type="image/png" href="https://i.postimg.cc/Yq5ZGfpz/Gemini-Generated-Image-9wbbqy9wbbqy9wbb-modified.png" />
-    <link rel="apple-touch-icon" href="https://i.postimg.cc/Yq5ZGfpz/Gemini-Generated-Image-9wbbqy9wbbqy9wbb-modified.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  </head>
-  <body class="bg-slate-50 text-slate-800 antialiased selection:bg-blue-600 selection:text-white">
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recepcionista Pro</title>
+  <meta name="description" content="Gestión integral de turnos, clientes, servicios, pagos y mensajes de WhatsApp para profesionales y pequeños negocios en Argentina sin costo mensual.">
+  <meta property="og:title" content="Recepcionista Pro">
+  <meta property="og:description" content="Gestión integral de turnos, clientes, servicios, pagos y mensajes de WhatsApp para profesionales y pequeños negocios en Argentina sin costo mensual.">
+  <meta property="og:type" content="website">
+  
+  <link rel="icon" type="image/png" href="https://i.postimg.cc/Yq5ZGfpz/Gemini-Generated-Image-9wbbqy9wbbqy9wbb-modified.png">
+  <link rel="apple-touch-icon" href="https://i.postimg.cc/Yq5ZGfpz/Gemini-Generated-Image-9wbbqy9wbbqy9wbb-modified.png">
+  
+  <!-- Tipografías Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Supabase JS CDN v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- SheetJS (xlsx) CDN -->
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="bg-slate-100/80 text-slate-900 antialiased selection:bg-blue-600 selection:text-white min-h-screen flex flex-col">
+
+  <!-- CONTENEDOR PRINCIPAL DE LA APLICACIÓN -->
+  <div id="app" class="min-h-screen flex flex-col">
+    <!-- El contenido se renderiza dinámicamente según el estado de autenticación -->
+  </div>
+
+  <!-- CONTENEDOR FLOTANTE PARA NOTIFICACIONES TOAST -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-80 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- SCRIPT COMPLETO DE LA APLICACIÓN JAVASCRIPT -->
+  <script>
+    // ==========================================
+    // 1. CONFIGURACIÓN E INICIALIZACIÓN DE SUPABASE
+    // ==========================================
+    const SUPABASE_URL = "https://lbvnmbhodgjvuylcrwip.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxidm5tYmhvZGdqdnV5bGNyd2lwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE2Mjc1MjgsImV4cCI6MjEwNzIwMzUyOH0.b54ADnojztuRqihBET-WzILNj6-ke5Cdi-nm9qYCNDA";
+
+    // Inicializar cliente evitando colisiones con window.supabase del script CDN UMD
+    let supabaseClient = null;
+    try {
+      if (window.supabase && typeof window.supabase.createClient === 'function') {
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true
+          }
+        });
+        window.supabaseClient = supabaseClient;
+      }
+    } catch (err) {
+      console.error('Error inicializando Supabase client:', err);
+    }
+
+    // ==========================================
+    // 2. ESTADO GLOBAL DE LA APLICACIÓN
+    // ==========================================
+    const state = {
+      user: null,
+      authLoading: true,
+      authMode: 'login', // 'login' | 'signup'
+      authErrorMessage: null,
+      authSuccessMessage: null,
+      authSubmitLoading: false,
+
+      // Recuperación de Contraseña
+      isForgotPasswordModalOpen: false,
+      forgotPasswordEmail: '',
+      forgotPasswordLoading: false,
+      forgotPasswordError: null,
+      forgotPasswordSuccess: null,
+
+      // Restablecimiento de Contraseña (desde link de correo)
+      isResetPasswordModalOpen: false,
+      resetPasswordNew: '',
+      resetPasswordLoading: false,
+      resetPasswordError: null,
+      resetPasswordSuccess: null,
+
+      // Navegación y Filtros
+      currentTab: 'dashboard', // 'dashboard' | 'calendar' | 'appointments' | 'clients' | 'services' | 'settings'
+      statusFilter: 'all',     // 'all' | 'today' | 'pendiente' | 'confirmado' | 'cancelado'
+      searchQuery: '',
+      sidebarMobileOpen: false,
+
+      // Datos sincronizados
+      appointments: [],
+      services: [],
+      clients: [],
+      settings: {
+        businessName: 'Consultorio & Servicios Pro',
+        ownerName: 'Profesional a Cargo',
+        phone: '11 5544-3322',
+        address: 'Buenos Aires, Argentina',
+        paymentAlias: 'recepcionista.pro.mp'
+      },
+
+      // Modales de Turnos y Servicios
+      isAppointmentModalOpen: false,
+      editingAppointment: null,
+      isManageServicesModalOpen: false,
+      editingServiceId: null, // Si se está editando un servicio en particular
+
+      // Modal de Confirmación Genérico
+      confirmModal: {
+        isOpen: false,
+        title: '',
+        message: '',
+        confirmText: 'Confirmar',
+        confirmVariant: 'danger', // 'danger' | 'primary'
+        onConfirm: null
+      },
+      
+      // Alertas en tiempo real (10 minutos)
+      upcomingAlerts: [],
+      alertedBeepIds: new Set(),
+      alarmTriggeredIds: new Set(),
+      isAlarmModalOpen: false,
+      alarmAppointment: null,
+
+      // Sincronización
+      syncing: false
+    };
+
+    // Servicios iniciales de respaldo por defecto
+    const DEFAULT_SERVICES = [
+      { id: 'srv-1', name: 'Consulta / Asesoría Inicial', durationMinutes: 30, price: 10000, category: 'Consultas' },
+      { id: 'srv-2', name: 'Atención Profesional Estándar', durationMinutes: 45, price: 16000, category: 'Servicios' },
+      { id: 'srv-3', name: 'Sesión / Servicio Integral', durationMinutes: 60, price: 22000, category: 'Atención General' },
+      { id: 'srv-4', name: 'Control y Seguimiento', durationMinutes: 30, price: 9000, category: 'Seguimiento' },
+      { id: 'srv-5', name: 'Procedimiento Especializado', durationMinutes: 90, price: 32000, category: 'Especializado' }
+    ];
+
+    // ==========================================
+    // 3. UTILIDADES DE FECHA, MONEDA Y NOTIFICACIONES
+    // ==========================================
+    function getTodayString() {
+      const now = new Date();
+      const yr = now.getFullYear();
+      const mo = String(now.getMonth() + 1).padStart(2, '0');
+      const da = String(now.getDate()).padStart(2, '0');
+      return `${yr}-${mo}-${da}`;
+    }
+
+    function formatCurrencyARS(amount) {
+      const num = Number(amount) || 0;
+      return '$ ' + num.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
+
+    function timeToMinutes(timeStr) {
+      if (!timeStr) return 0;
+      const [h, m] = timeStr.split(':').map(Number);
+      return (h || 0) * 60 + (m || 0);
+    }
+
+    function addMinutesToTime(timeStr, minutes) {
+      const total = timeToMinutes(timeStr) + Number(minutes || 0);
+      const h = Math.floor(total / 60) % 24;
+      const m = total % 60;
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+
+    function normalizeArgentinePhone(rawPhone) {
+      if (!rawPhone) return '';
+      let digits = rawPhone.replace(/\D/g, '');
+      if (digits.startsWith('0054')) digits = digits.slice(4);
+      else if (digits.startsWith('054')) digits = digits.slice(3);
+      if (digits.startsWith('54')) digits = digits.slice(2);
+      if (digits.startsWith('9')) digits = digits.slice(1);
+      if (digits.startsWith('0')) digits = digits.slice(1);
+      if (digits.startsWith('1115') && digits.length >= 10) digits = '11' + digits.slice(4);
+      else if (digits.startsWith('15') && digits.length === 10) digits = '11' + digits.slice(2);
+      return `549${digits}`;
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      if (!container) return;
+
+      const toast = document.createElement('div');
+      const bg = type === 'success' ? 'bg-emerald-600 text-white' :
+                 type === 'error' ? 'bg-rose-600 text-white' :
+                 type === 'warning' ? 'bg-amber-600 text-white' :
+                 'bg-slate-900 text-white';
+
+      const iconName = type === 'success' ? 'check-circle-2' :
+                       type === 'error' ? 'alert-circle' :
+                       type === 'warning' ? 'alert-triangle' : 'info';
+
+      toast.className = `flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-xl text-xs font-semibold ${bg} transition-all duration-300 transform translate-y-2 opacity-0 pointer-events-auto border border-white/20`;
+      toast.innerHTML = `
+        <i data-lucide="${iconName}" class="w-4 h-4 shrink-0"></i>
+        <span>${message}</span>
+      `;
+
+      container.appendChild(toast);
+      if (window.lucide) window.lucide.createIcons();
+
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    // Modal de confirmación estilizado
+    function openConfirmModal(title, message, onConfirm, confirmText = 'Eliminar', confirmVariant = 'danger') {
+      state.confirmModal = {
+        isOpen: true,
+        title,
+        message,
+        confirmText,
+        confirmVariant,
+        onConfirm
+      };
+      renderApp();
+    }
+
+    function closeConfirmModal() {
+      state.confirmModal.isOpen = false;
+      state.confirmModal.onConfirm = null;
+      renderApp();
+    }
+
+    function handleConfirmModalAction() {
+      if (typeof state.confirmModal.onConfirm === 'function') {
+        state.confirmModal.onConfirm();
+      }
+      closeConfirmModal();
+    }
+
+    // ==========================================
+    // 4. WEB AUDIO API (ALERTAS SONORAS)
+    // ==========================================
+    let audioCtx = null;
+    function getAudioContext() {
+      if (!audioCtx) {
+        const AudioClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioClass) audioCtx = new AudioClass();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    function playAlertBeep() {
+      try {
+        const ctx = getAudioContext();
+        if (!ctx) return;
+        const now = ctx.currentTime;
+        const beeps = [
+          { freq: 880, start: 0, duration: 0.12 },
+          { freq: 1046.5, start: 0.16, duration: 0.20 }
+        ];
+        beeps.forEach(({ freq, start, duration }) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + start);
+          gain.gain.setValueAtTime(0.001, now + start);
+          gain.gain.exponentialRampToValueAtTime(0.25, now + start + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + start + duration);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + start);
+          osc.stop(now + start + duration + 0.04);
+        });
+      } catch (e) {
+        console.warn('AudioContext beep error:', e);
+      }
+    }
+
+    function playAlarmChime() {
+      try {
+        const ctx = getAudioContext();
+        if (!ctx) return;
+        const now = ctx.currentTime;
+        const notes = [
+          { freq: 587.33, start: 0, duration: 0.16 },
+          { freq: 783.99, start: 0.18, duration: 0.18 },
+          { freq: 1046.50, start: 0.38, duration: 0.32 },
+          { freq: 783.99, start: 0.80, duration: 0.16 },
+          { freq: 1046.50, start: 1.00, duration: 0.38 },
+        ];
+        notes.forEach(({ freq, start, duration }) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + start);
+          gain.gain.setValueAtTime(0.001, now + start);
+          gain.gain.exponentialRampToValueAtTime(0.3, now + start + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + start + duration);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + start);
+          osc.stop(now + start + duration + 0.05);
+        });
+      } catch (e) {
+        console.warn('AudioContext chime error:', e);
+      }
+    }
+
+    // ==========================================
+    // 5. MAPEO Y CRUD EN TABLAS SUPABASE ('recepcion' y 'servicios')
+    // ==========================================
+    function mapRowToAppointment(row) {
+      let parsed = {};
+      if (row.notas) {
+        try {
+          parsed = JSON.parse(row.notas);
+        } catch {
+          parsed = { notes: row.notas };
+        }
+      }
+      const dateStr = parsed.date || (row.created_at ? row.created_at.slice(0, 10) : getTodayString());
+      return {
+        id: row.id ? String(row.id) : (parsed.id || `app-${Date.now()}`),
+        numericId: row.id || null,
+        clientId: parsed.clientId || `cli-${row.id || Date.now()}`,
+        clientName: parsed.clientName || row.empresa || 'Cliente',
+        clientPhone: parsed.clientPhone || '',
+        clientEmail: parsed.clientEmail || '',
+        serviceId: parsed.serviceId || 'srv-1',
+        serviceName: parsed.serviceName || row.motivo || 'Servicio General',
+        date: dateStr,
+        startTime: parsed.startTime || '10:00',
+        endTime: parsed.endTime || '10:45',
+        durationMinutes: Number(parsed.durationMinutes) || 45,
+        price: Number(parsed.price) || 0,
+        deposit: Number(parsed.deposit) || 0,
+        amountPaid: Number(parsed.amountPaid) || 0,
+        paymentMethod: parsed.paymentMethod || 'Efectivo',
+        status: row.estado || parsed.status || 'pendiente',
+        notes: parsed.notes || '',
+        createdAt: row.created_at || new Date().toISOString()
+      };
+    }
+
+    function mapAppointmentToRow(app, userId) {
+      const payloadJson = JSON.stringify({
+        clientName: app.clientName,
+        clientPhone: app.clientPhone,
+        clientEmail: app.clientEmail,
+        clientId: app.clientId,
+        serviceId: app.serviceId,
+        serviceName: app.serviceName,
+        date: app.date,
+        startTime: app.startTime,
+        endTime: app.endTime,
+        durationMinutes: app.durationMinutes,
+        price: app.price,
+        deposit: app.deposit,
+        amountPaid: app.amountPaid,
+        paymentMethod: app.paymentMethod,
+        status: app.status,
+        notes: app.notes,
+        updatedAt: new Date().toISOString()
+      });
+
+      return {
+        user_id: userId,
+        empresa: app.clientName,
+        motivo: `${app.serviceName} - ${app.date} ${app.startTime}hs`,
+        estado: app.status,
+        notas: payloadJson
+      };
+    }
+
+    // 5.1 READ: Carga de turnos desde 'recepcion'
+    async function fetchAppointmentsFromCloud() {
+      if (!supabaseClient || !state.user) return;
+      state.syncing = true;
+      renderSyncIndicator();
+
+      try {
+        const { data, error } = await supabaseClient
+          .from('recepcion')
+          .select('*')
+          .order('id', { ascending: false });
+
+        if (error) {
+          console.error('Error fetching recepcion:', error);
+          showToast('Error al conectar con tabla recepcion: ' + error.message, 'error');
+        } else if (data) {
+          state.appointments = data.map(mapRowToAppointment);
+          rebuildClientsFromAppointments();
+        }
+      } catch (err) {
+        console.error('Failed to load appointments:', err);
+      } finally {
+        state.syncing = false;
+        renderSyncIndicator();
+        renderMainView();
+      }
+    }
+
+    // 5.2 READ: Carga de servicios desde la tabla 'servicios'
+    async function fetchServicesFromCloud() {
+      if (!supabaseClient || !state.user) return;
+      try {
+        const { data, error } = await supabaseClient
+          .from('servicios')
+          .select('*')
+          .order('id', { ascending: false });
+
+        if (error) {
+          console.warn('Tabla servicios o RLS no disponible, usando servicios locales:', error.message);
+          if (state.services.length === 0) {
+            state.services = [...DEFAULT_SERVICES];
+          }
+        } else if (data && data.length > 0) {
+          state.services = data.map(s => ({
+            id: String(s.id),
+            name: s.nombre || s.name || 'Servicio',
+            durationMinutes: Number(s.duracion_minutos || s.duracion || s.durationMinutes || 45),
+            price: Number(s.precio || s.price || 0),
+            category: s.categoria || s.category || 'Servicios'
+          }));
+        } else {
+          if (state.services.length === 0) {
+            state.services = [...DEFAULT_SERVICES];
+          }
+        }
+      } catch (err) {
+        console.error('Error al consultar servicios:', err);
+        if (state.services.length === 0) {
+          state.services = [...DEFAULT_SERVICES];
+        }
+      }
+    }
+
+    function rebuildClientsFromAppointments() {
+      const map = new Map();
+      for (const app of state.appointments) {
+        if (!app.clientName) continue;
+        const key = app.clientPhone || app.clientName;
+        if (!map.has(key)) {
+          map.set(key, {
+            id: app.clientId,
+            name: app.clientName,
+            phone: app.clientPhone,
+            email: app.clientEmail,
+            totalVisits: 1,
+            totalSpent: app.amountPaid || 0,
+            lastVisit: app.date
+          });
+        } else {
+          const cur = map.get(key);
+          cur.totalVisits++;
+          cur.totalSpent += app.amountPaid || 0;
+          if (app.date > cur.lastVisit) cur.lastVisit = app.date;
+        }
+      }
+      state.clients = Array.from(map.values());
+    }
+
+    // 5.3 CREATE & UPDATE: Guardar / Actualizar Turno en 'recepcion'
+    async function saveAppointment(appointmentData) {
+      if (!supabaseClient || !state.user) return;
+
+      const isExisting = Boolean(appointmentData.numericId || (appointmentData.id && !String(appointmentData.id).startsWith('app-')));
+      const targetId = appointmentData.numericId || appointmentData.id;
+      const rowPayload = mapAppointmentToRow(appointmentData, state.user.id);
+
+      try {
+        if (isExisting) {
+          // UPDATE (.update())
+          const { error } = await supabaseClient
+            .from('recepcion')
+            .update(rowPayload)
+            .eq('id', targetId);
+
+          if (error) {
+            showToast('Error al actualizar turno: ' + error.message, 'error');
+            return;
+          }
+          showToast('Turno actualizado correctamente en Supabase', 'success');
+        } else {
+          // CREATE (INSERT)
+          const { data, error } = await supabaseClient
+            .from('recepcion')
+            .insert([rowPayload])
+            .select()
+            .single();
+
+          if (error) {
+            showToast('Error al crear turno: ' + error.message, 'error');
+            return;
+          } else if (data) {
+            appointmentData = mapRowToAppointment(data);
+          }
+          showToast('Nuevo turno registrado con éxito en Supabase', 'success');
+        }
+
+        await fetchAppointmentsFromCloud();
+        state.isAppointmentModalOpen = false;
+        state.editingAppointment = null;
+        renderApp();
+      } catch (err) {
+        console.error('Error en saveAppointment:', err);
+        showToast('Error inesperado al guardar turno', 'error');
+      }
+    }
+
+    // 5.4 DELETE: Eliminar Turno de 'recepcion' (.delete())
+    function deleteAppointment(appointmentId, numericId) {
+      openConfirmModal(
+        '¿Eliminar este turno?',
+        'Esta acción eliminará el turno de forma permanente de la tabla "recepcion" de Supabase.',
+        async () => {
+          const targetId = numericId || (!String(appointmentId).startsWith('app-') ? appointmentId : null);
+
+          if (targetId && supabaseClient) {
+            try {
+              const { error } = await supabaseClient
+                .from('recepcion')
+                .delete()
+                .eq('id', targetId);
+
+              if (error) {
+                showToast('Error al eliminar en Supabase: ' + error.message, 'error');
+                return;
+              }
+            } catch (e) {
+              console.error(e);
+            }
+          }
+
+          state.appointments = state.appointments.filter(a => a.id !== appointmentId && a.numericId !== numericId);
+          rebuildClientsFromAppointments();
+          state.isAppointmentModalOpen = false;
+          state.editingAppointment = null;
+          showToast('Turno eliminado correctamente', 'success');
+          renderApp();
+        },
+        'Eliminar Turno'
+      );
+    }
+
+    // 5.5 UPDATE RÁPIDO DE ESTADO: (.update())
+    async function changeAppointmentStatus(appId, newStatus) {
+      const app = state.appointments.find(a => a.id === appId);
+      if (!app) return;
+
+      const oldStatus = app.status;
+      app.status = newStatus;
+      renderApp();
+
+      const targetId = app.numericId || (!String(app.id).startsWith('app-') ? app.id : null);
+      if (targetId && supabaseClient) {
+        try {
+          const { error } = await supabaseClient
+            .from('recepcion')
+            .update({ estado: newStatus })
+            .eq('id', targetId);
+
+          if (error) {
+            app.status = oldStatus;
+            showToast('Error al actualizar estado: ' + error.message, 'error');
+            renderApp();
+            return;
+          }
+          showToast(`Estado actualizado a "${newStatus}"`, 'success');
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+
+    // 5.6 CRUD SERVICIOS: CREATE (INSERT)
+    async function createServiceInCloud(name, duration, price, category) {
+      const newService = {
+        id: `srv-${Date.now()}`,
+        name: name.trim(),
+        durationMinutes: Number(duration) || 30,
+        price: Number(price) || 0,
+        category: (category || 'Servicios').trim()
+      };
+
+      if (supabaseClient && state.user) {
+        try {
+          const { data, error } = await supabaseClient
+            .from('servicios')
+            .insert([{
+              nombre: newService.name,
+              duracion_minutos: newService.durationMinutes,
+              precio: newService.price,
+              categoria: newService.category,
+              user_id: state.user.id
+            }])
+            .select()
+            .single();
+
+          if (error) {
+            console.warn('Error al insertar en tabla servicios de Supabase:', error.message);
+            showToast('Servicio guardado localmente (aviso Supabase: ' + error.message + ')', 'warning');
+          } else if (data) {
+            newService.id = String(data.id);
+            showToast('Servicio creado con éxito en Supabase', 'success');
+          }
+        } catch (e) {
+          console.warn('Inserción en tabla servicios:', e);
+        }
+      }
+
+      state.services.unshift(newService);
+      return newService;
+    }
+
+    // 5.7 CRUD SERVICIOS: UPDATE (.update())
+    async function updateServiceInCloud(serviceId, name, duration, price, category) {
+      const updatedData = {
+        name: name.trim(),
+        durationMinutes: Number(duration) || 30,
+        price: Number(price) || 0,
+        category: (category || 'Servicios').trim()
+      };
+
+      const targetId = Number(serviceId) || serviceId;
+      if (supabaseClient && !String(serviceId).startsWith('srv-')) {
+        try {
+          const { error } = await supabaseClient
+            .from('servicios')
+            .update({
+              nombre: updatedData.name,
+              duracion_minutos: updatedData.durationMinutes,
+              precio: updatedData.price,
+              categoria: updatedData.category
+            })
+            .eq('id', targetId);
+
+          if (error) {
+            showToast('Error al actualizar servicio en Supabase: ' + error.message, 'error');
+          } else {
+            showToast('Servicio actualizado en Supabase', 'success');
+          }
+        } catch (e) {
+          console.warn('Error al actualizar servicio:', e);
+        }
+      } else {
+        showToast('Servicio actualizado', 'success');
+      }
+
+      const s = state.services.find(item => item.id === String(serviceId));
+      if (s) {
+        s.name = updatedData.name;
+        s.durationMinutes = updatedData.durationMinutes;
+        s.price = updatedData.price;
+        s.category = updatedData.category;
+      }
+
+      state.editingServiceId = null;
+      renderApp();
+    }
+
+    // 5.8 CRUD SERVICIOS: DELETE (.delete())
+    function deleteServiceFromCloud(serviceId) {
+      const serv = state.services.find(s => s.id === serviceId);
+      const name = serv ? serv.name : 'este servicio';
+
+      openConfirmModal(
+        `¿Eliminar servicio?`,
+        `¿Estás seguro de que deseas eliminar "${name}" del catálogo?`,
+        async () => {
+          const targetId = Number(serviceId) || (!String(serviceId).startsWith('srv-') ? serviceId : null);
+          if (targetId && supabaseClient) {
+            try {
+              const { error } = await supabaseClient.from('servicios').delete().eq('id', targetId);
+              if (error) {
+                console.warn('Error al eliminar de tabla servicios:', error.message);
+              }
+            } catch (e) {
+              console.warn('Error al eliminar de tabla servicios:', e);
+            }
+          }
+
+          state.services = state.services.filter(s => s.id !== serviceId);
+          if (state.editingServiceId === serviceId) {
+            state.editingServiceId = null;
+          }
+          showToast('Servicio eliminado del catálogo', 'success');
+          renderManageServicesList();
+          renderApp();
+        },
+        'Eliminar Servicio'
+      );
+    }
+
+    // ==========================================
+    // 6. TEMPORIZADOR DE ALARMA DE 10 MINUTOS
+    // ==========================================
+    function startRealTimeAlarmTimer() {
+      setInterval(() => {
+        if (!state.user || state.appointments.length === 0) return;
+
+        const now = new Date();
+        const today = getTodayString();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+        const matchedAlerts = [];
+
+        for (const app of state.appointments) {
+          if (app.date !== today) continue;
+          if (app.status === 'cancelado' || app.status === 'completado') continue;
+
+          const appMinutes = timeToMinutes(app.startTime);
+          const diff = appMinutes - currentMinutes;
+
+          // Alerta sonora y banner a 10 minutos o menos (0 <= diff <= 10)
+          if (diff >= 0 && diff <= 10) {
+            matchedAlerts.push({ appointment: app, minutesLeft: diff });
+
+            // Beep al ingresar al rango de 10 min
+            if (!state.alertedBeepIds.has(app.id)) {
+              playAlertBeep();
+              state.alertedBeepIds.add(app.id);
+            }
+          }
+
+          // Alarma modal a los 5 minutos exactos
+          if (diff <= 5 && diff >= 0 && !state.alarmTriggeredIds.has(app.id)) {
+            state.alarmTriggeredIds.add(app.id);
+            state.alarmAppointment = app;
+            state.isAlarmModalOpen = true;
+            playAlarmChime();
+            renderApp();
+          }
+        }
+
+        state.upcomingAlerts = matchedAlerts;
+        renderAlertBanner();
+      }, 30000); // Verificación cada 30 segundos
+    }
+
+    // ==========================================
+    // 7. EXPORTACIÓN A EXCEL CON SHEETJS (.xlsx)
+    // ==========================================
+    function exportAppointmentsToExcel() {
+      if (!window.XLSX) {
+        showToast('SheetJS aún se está cargando. Por favor reintenta en unos segundos.', 'warning');
+        return;
+      }
+
+      if (state.appointments.length === 0) {
+        showToast('No hay turnos registrados para exportar.', 'warning');
+        return;
+      }
+
+      const rows = state.appointments.map(app => {
+        const balance = Math.max(0, app.price - (app.amountPaid || app.deposit || 0));
+        return {
+          'Fecha / Hora': `${app.date} ${app.startTime}hs`,
+          'Visitante / Cliente': app.clientName || 'Sin especificar',
+          'Teléfono (WhatsApp)': app.clientPhone || '',
+          'Email': app.clientEmail || '',
+          'Servicio Solicitado': app.serviceName || '',
+          'Precio Total ($ ARS)': app.price,
+          'Total Cobrado ($ ARS)': app.amountPaid,
+          'Saldo Pendiente ($ ARS)': balance,
+          'Medio de Pago': app.paymentMethod || 'Efectivo',
+          'Estado': app.status,
+          'Notas / Observaciones': app.notes || ''
+        };
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+
+      worksheet['!cols'] = [
+        { wch: 22 }, { wch: 26 }, { wch: 20 }, { wch: 24 },
+        { wch: 28 }, { wch: 18 }, { wch: 18 }, { wch: 18 },
+        { wch: 18 }, { wch: 15 }, { wch: 35 }
+      ];
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Recepción');
+
+      const todayStr = getTodayString();
+      XLSX.writeFile(workbook, `Recepcionista_Pro_${todayStr}.xlsx`);
+      showToast('Archivo Excel descargado con éxito', 'success');
+    }
+
+    // ==========================================
+    // 8. ENCABEZADO SUPERIOR (TOP HEADER)
+    // ==========================================
+    // Mantiene ÚNICAMENTE los botones de acción principales alineados en la esquina superior derecha:
+    // 1. "Nuevo Turno"
+    // 2. "Excel" Exportar
+    // 3. Campana de Alarma/Notificación (prueba timbre y muestra alertas)
+    // 4. Indicador de Usuario/Email Conectado
+    // 5. "Cerrar Sesión" (Logout)
+    function renderTopHeader() {
+      const email = state.user?.email || 'Usuario';
+      const titles = {
+        dashboard: 'Panel de Control',
+        calendar: 'Agenda de Turnos',
+        appointments: 'Lista de Turnos',
+        clients: 'Directorio de Clientes',
+        services: 'Catálogo de Servicios',
+        settings: 'Configuración General'
+      };
+
+      return `
+        <header class="sticky top-0 z-20 bg-white border-b border-slate-200/90 shadow-xs h-16 px-4 sm:px-6 flex items-center justify-between gap-3">
+          <!-- Lado Izquierdo: Menú móvil + Título de Sección -->
+          <div class="flex items-center gap-3 min-w-0">
+            <button 
+              onclick="toggleMobileSidebar()" 
+              class="lg:hidden p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+              title="Abrir menú de navegación"
+            >
+              <i data-lucide="menu" class="w-5 h-5"></i>
+            </button>
+            <div class="min-w-0">
+              <h1 class="text-base sm:text-lg font-bold text-slate-900 tracking-tight truncate">
+                ${titles[state.currentTab] || 'Recepcionista Pro'}
+              </h1>
+              <p class="text-[11px] text-slate-500 truncate hidden sm:block">
+                ${state.settings.businessName}
+              </p>
+            </div>
+          </div>
+
+          <!-- ESQUINA SUPERIOR DERECHA: ÚNICAMENTE BOTONES DE ACCIÓN PRINCIPALES -->
+          <div class="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            <!-- 1. Botón "Nuevo Turno" -->
+            <button 
+              onclick="openAppointmentModal()"
+              class="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-xs hover:shadow transition-all focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer shrink-0"
+              title="Registrar nuevo turno"
+            >
+              <i data-lucide="plus" class="w-4 h-4 stroke-[2.5]"></i>
+              <span class="hidden sm:inline">Nuevo Turno</span>
+              <span class="sm:hidden">Turno</span>
+            </button>
+
+            <!-- 2. Botón "Excel" Exportar -->
+            <button 
+              onclick="exportAppointmentsToExcel()"
+              class="flex items-center gap-1.5 bg-emerald-700 hover:bg-emerald-600 active:bg-emerald-800 text-white px-2.5 sm:px-3 py-2 rounded-xl text-xs font-bold shadow-xs transition-all border border-emerald-600 cursor-pointer shrink-0"
+              title="Exportar base de turnos a archivo Excel (.xlsx)"
+            >
+              <i data-lucide="file-spreadsheet" class="w-4 h-4 text-emerald-200"></i>
+              <span class="hidden md:inline">Exportar a Excel</span>
+              <span class="md:hidden">Excel</span>
+            </button>
+
+            <!-- 3. Icono Campana Alarma / Notificación -->
+            <button 
+              onclick="testAlarmChime()"
+              class="relative p-2 text-amber-700 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 border border-amber-200 rounded-xl transition-all cursor-pointer shrink-0"
+              title="Alarma activa 10 min antes de la cita. Clic para probar timbre."
+            >
+              <i data-lucide="bell" class="w-4 h-4 text-amber-600"></i>
+              ${state.upcomingAlerts.length > 0 ? `
+                <span class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center animate-pulse">
+                  ${state.upcomingAlerts.length}
+                </span>
+              ` : `
+                <span class="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber-500"></span>
+              `}
+            </button>
+
+            <!-- 4. Indicador Correo / Usuario Conectado -->
+            <div 
+              class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-medium cursor-default shrink-0"
+              title="Usuario autenticado: ${email}"
+            >
+              <div class="w-6 h-6 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-[11px] shrink-0">
+                <i data-lucide="user" class="w-3.5 h-3.5"></i>
+              </div>
+              <span class="hidden xl:inline font-mono text-[11px] truncate max-w-[140px]">
+                ${email}
+              </span>
+            </div>
+
+            <!-- 5. Botón "Cerrar Sesión" (Logout) -->
+            <button 
+              onclick="handleLogout()"
+              class="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-xs font-semibold text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 rounded-xl transition-colors cursor-pointer shrink-0"
+              title="Cerrar sesión de Supabase"
+            >
+              <i data-lucide="log-out" class="w-4 h-4"></i>
+              <span class="hidden sm:inline">Cerrar Sesión</span>
+            </button>
+          </div>
+        </header>
+      `;
+    }
+
+    // ==========================================
+    // 9. BARRA LATERAL IZQUIERDA (LEFT SIDEBAR)
+    // ==========================================
+    function renderLeftSidebar() {
+      const todayStr = getTodayString();
+      const todayCount = state.appointments.filter(a => a.date === todayStr && a.status !== 'cancelado').length;
+      const pendingCount = state.appointments.filter(a => a.status === 'pendiente').length;
+      const confirmedCount = state.appointments.filter(a => a.status === 'confirmado').length;
+      const cancelledCount = state.appointments.filter(a => a.status === 'cancelado').length;
+
+      const navItems = [
+        { id: 'dashboard', label: 'Inicio / Panel', icon: 'layout-dashboard' },
+        { id: 'calendar', label: 'Agenda', icon: 'calendar', badge: todayCount > 0 ? `${todayCount} hoy` : null },
+        { id: 'appointments', label: 'Lista de Turnos', icon: 'list-filter', badge: state.appointments.length },
+        { id: 'clients', label: 'Clientes', icon: 'users', badge: state.clients.length },
+        { id: 'services', label: 'Servicios', icon: 'briefcase', badge: state.services.length },
+        { id: 'settings', label: 'Configuración', icon: 'settings' }
+      ];
+
+      const navHtml = navItems.map(item => {
+        const isActive = state.currentTab === item.id;
+        return `
+          <button 
+            onclick="switchTab('${item.id}')"
+            class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all group cursor-pointer ${
+              isActive 
+                ? 'bg-blue-600 text-white shadow-xs font-bold' 
+                : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+            }"
+          >
+            <div class="flex items-center gap-2.5 min-w-0">
+              <i data-lucide="${item.icon}" class="w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-blue-400'}"></i>
+              <span class="truncate">${item.label}</span>
+            </div>
+            ${item.badge !== null && item.badge !== undefined ? `
+              <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                isActive ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-300 border border-slate-700'
+              }">
+                ${item.badge}
+              </span>
+            ` : ''}
+          </button>
+        `;
+      }).join('');
+
+      return `
+        <div class="flex flex-col h-full bg-slate-900 text-slate-100 border-r border-slate-800 select-none">
+          <!-- Header de Marca -->
+          <div class="p-4 sm:p-5 border-b border-slate-800/80 shrink-0">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-slate-800 p-1 border border-slate-700 shadow-md flex items-center justify-center overflow-hidden shrink-0">
+                  <img src="https://i.postimg.cc/Yq5ZGfpz/Gemini-Generated-Image-9wbbqy9wbbqy9wbb-modified.png" alt="Logo" class="w-full h-full object-contain">
+                </div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <span class="font-extrabold text-sm tracking-tight text-white">Recepcionista Pro</span>
+                    <span class="text-[9px] uppercase font-bold tracking-wider text-blue-400 bg-blue-950/80 px-1.5 py-0.2 rounded border border-blue-800/80">ARG</span>
+                  </div>
+                  <p class="text-xs text-slate-400 truncate max-w-[160px]">${state.settings.businessName}</p>
+                </div>
+              </div>
+
+              <!-- Cerrar en móvil -->
+              <button onclick="toggleMobileSidebar()" class="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800">
+                <i data-lucide="x" class="w-5 h-5"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Navegación & Filtros -->
+          <div class="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+            <!-- Menú Principal -->
+            <div class="space-y-1">
+              <div class="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Navegación Principal
+              </div>
+              ${navHtml}
+            </div>
+
+            <!-- Filtros Rápidos de la Barra Lateral -->
+            <div class="space-y-1.5 pt-3 border-t border-slate-800/80">
+              <div class="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Filtros de Turnos
+              </div>
+
+              <button onclick="applyFilter('today')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors text-left cursor-pointer ${state.statusFilter === 'today' ? 'bg-blue-900/50 text-blue-300 font-bold' : ''}">
+                <div class="flex items-center gap-2">
+                  <i data-lucide="clock" class="w-3.5 h-3.5 text-blue-400"></i>
+                  <span>Turnos de Hoy</span>
+                </div>
+                <span class="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded bg-blue-950 border border-blue-800 text-blue-300">${todayCount}</span>
+              </button>
+
+              <button onclick="applyFilter('pendiente')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors text-left cursor-pointer ${state.statusFilter === 'pendiente' ? 'bg-amber-950/50 text-amber-300 font-bold' : ''}">
+                <div class="flex items-center gap-2">
+                  <i data-lucide="alert-circle" class="w-3.5 h-3.5 text-amber-400"></i>
+                  <span>Pendientes</span>
+                </div>
+                <span class="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-950 border border-amber-800 text-amber-400">${pendingCount}</span>
+              </button>
+
+              <button onclick="applyFilter('confirmado')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors text-left cursor-pointer ${state.statusFilter === 'confirmado' ? 'bg-emerald-950/50 text-emerald-300 font-bold' : ''}">
+                <div class="flex items-center gap-2">
+                  <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  <span>Confirmados</span>
+                </div>
+                <span class="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">${confirmedCount}</span>
+              </button>
+
+              ${cancelledCount > 0 ? `
+                <button onclick="applyFilter('cancelado')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors text-left cursor-pointer ${state.statusFilter === 'cancelado' ? 'bg-rose-950/50 text-rose-300 font-bold' : ''}">
+                  <div class="flex items-center gap-2">
+                    <i data-lucide="x-circle" class="w-3.5 h-3.5 text-rose-400"></i>
+                    <span>Cancelados</span>
+                  </div>
+                  <span class="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded bg-rose-950 border border-rose-900 text-rose-400">${cancelledCount}</span>
+                </button>
+              ` : ''}
+            </div>
+          </div>
+
+          <!-- Footer de la Barra Lateral -->
+          <div class="p-3.5 border-t border-slate-800/80 bg-slate-950/40 shrink-0 space-y-1.5">
+            <div class="flex items-center justify-between text-[11px]">
+              <div class="flex items-center gap-1.5 text-emerald-400">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="font-semibold">Supabase Cloud</span>
+              </div>
+              <span class="text-slate-500 font-mono text-[10px]">recepcion</span>
+            </div>
+            <p class="text-[11px] text-slate-400 truncate">${state.settings.ownerName}</p>
+          </div>
+        </div>
+      `;
+    }
+
+    // ==========================================
+    // 10. VISTAS PRINCIPALES (DASHBOARD, CALENDARIO, TURNOS, CLIENTES, SERVICIOS, CONFIG)
+    // ==========================================
+    function renderMainView() {
+      const container = document.getElementById('mainContentArea');
+      if (!container) return;
+
+      switch (state.currentTab) {
+        case 'dashboard':
+          container.innerHTML = renderDashboardView();
+          break;
+        case 'calendar':
+          container.innerHTML = renderCalendarView();
+          break;
+        case 'appointments':
+          container.innerHTML = renderAppointmentsView();
+          break;
+        case 'clients':
+          container.innerHTML = renderClientsView();
+          break;
+        case 'services':
+          container.innerHTML = renderServicesCatalogView();
+          break;
+        case 'settings':
+          container.innerHTML = renderSettingsView();
+          break;
+        default:
+          container.innerHTML = renderDashboardView();
+      }
+
+      if (window.lucide) {
+        window.lucide.createIcons();
+      }
+    }
+
+    // 10.1 DASHBOARD
+    function renderDashboardView() {
+      const today = getTodayString();
+      const todayApps = state.appointments.filter(a => a.date === today);
+      const pendingApps = todayApps.filter(a => a.status === 'pendiente');
+      
+      let totalBilledMonth = 0;
+      let totalCollectedMonth = 0;
+      const currentMonthPrefix = today.slice(0, 7);
+
+      state.appointments.forEach(a => {
+        if (a.date && a.date.startsWith(currentMonthPrefix) && a.status !== 'cancelado') {
+          totalBilledMonth += a.price || 0;
+          totalCollectedMonth += a.amountPaid || 0;
+        }
+      });
+
+      return `
+        <div class="space-y-6">
+          <!-- Tarjetas KPI / Métricas -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+              <div class="flex items-center justify-between text-slate-500 mb-2">
+                <span class="text-xs font-bold uppercase tracking-wider">Turnos Hoy</span>
+                <i data-lucide="calendar" class="w-4 h-4 text-blue-600"></i>
+              </div>
+              <p class="text-2xl font-black text-slate-900">${todayApps.length}</p>
+              <p class="text-xs text-slate-500 mt-1">${pendingApps.length} pendientes de confirmar</p>
+            </div>
+
+            <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+              <div class="flex items-center justify-between text-slate-500 mb-2">
+                <span class="text-xs font-bold uppercase tracking-wider">Cobrado Mes</span>
+                <i data-lucide="dollar-sign" class="w-4 h-4 text-emerald-600"></i>
+              </div>
+              <p class="text-2xl font-black text-emerald-700 font-mono">${formatCurrencyARS(totalCollectedMonth)}</p>
+              <p class="text-xs text-slate-500 mt-1">Facturación total: ${formatCurrencyARS(totalBilledMonth)}</p>
+            </div>
+
+            <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+              <div class="flex items-center justify-between text-slate-500 mb-2">
+                <span class="text-xs font-bold uppercase tracking-wider">Clientes Registrados</span>
+                <i data-lucide="users" class="w-4 h-4 text-indigo-600"></i>
+              </div>
+              <p class="text-2xl font-black text-slate-900">${state.clients.length}</p>
+              <p class="text-xs text-slate-500 mt-1">Directorio sincronizado</p>
+            </div>
+
+            <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+              <div class="flex items-center justify-between text-slate-500 mb-2">
+                <span class="text-xs font-bold uppercase tracking-wider">Servicios Activos</span>
+                <i data-lucide="briefcase" class="w-4 h-4 text-amber-600"></i>
+              </div>
+              <p class="text-2xl font-black text-slate-900">${state.services.length}</p>
+              <p class="text-xs text-slate-500 mt-1">Tabla 'servicios' de Supabase</p>
+            </div>
+          </div>
+
+          <!-- Turnos del Día -->
+          <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 class="font-bold text-base text-slate-900">Agenda para Hoy (${today})</h3>
+                <p class="text-xs text-slate-500">Listado cronológico de turnos del día</p>
+              </div>
+              <button onclick="openAppointmentModal(null, '${today}')" class="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors cursor-pointer">
+                + Agregar turno hoy
+              </button>
+            </div>
+
+            <div class="divide-y divide-slate-100">
+              ${todayApps.length === 0 ? `
+                <div class="p-8 text-center text-slate-400 text-xs">
+                  No hay turnos agendados para el día de hoy. ¡Hacé clic en "Nuevo Turno" para registrar uno!
+                </div>
+              ` : todayApps.map(app => `
+                <div class="p-4 sm:px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/80 transition-colors">
+                  <div class="flex items-start gap-3.5">
+                    <div class="px-2.5 py-1.5 bg-slate-100 text-slate-800 font-mono font-bold text-xs rounded-xl border border-slate-200 text-center shrink-0">
+                      ${app.startTime} hs
+                    </div>
+                    <div>
+                      <h4 class="font-bold text-sm text-slate-900">${app.clientName}</h4>
+                      <p class="text-xs text-slate-500 font-medium">${app.serviceName} (${app.durationMinutes} min) · ${formatCurrencyARS(app.price)}</p>
+                      ${app.clientPhone ? `
+                        <p class="text-[11px] text-slate-400 font-mono mt-0.5 flex items-center gap-1">
+                          <i data-lucide="phone" class="w-3 h-3 text-slate-400"></i> ${app.clientPhone}
+                        </p>
+                      ` : ''}
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-2 self-end sm:self-center">
+                    <span class="text-[11px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                      app.status === 'confirmado' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                      app.status === 'pendiente' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                      'bg-slate-100 text-slate-700'
+                    }">${app.status}</span>
+
+                    ${app.clientPhone ? `
+                      <a 
+                        href="https://wa.me/${normalizeArgentinePhone(app.clientPhone)}?text=${encodeURIComponent(`Hola ${app.clientName}! Te recordamos tu turno de ${app.serviceName} hoy a las ${app.startTime}hs en ${state.settings.businessName}.`)}"
+                        target="_blank" 
+                        class="p-1.5 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200"
+                        title="Enviar WhatsApp"
+                      >
+                        <i data-lucide="message-square" class="w-3.5 h-3.5"></i>
+                      </a>
+                    ` : ''}
+
+                    <button onclick="openAppointmentModal('${app.id}')" class="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer" title="Editar turno">
+                      <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                    </button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // 10.2 LISTA DE TURNOS (TABLA COMPLETA CON FILTROS Y ACCIONES)
+    function renderAppointmentsView() {
+      let filtered = [...state.appointments];
+      const today = getTodayString();
+
+      if (state.statusFilter === 'today') {
+        filtered = filtered.filter(a => a.date === today);
+      } else if (state.statusFilter !== 'all') {
+        filtered = filtered.filter(a => a.status === state.statusFilter);
+      }
+
+      if (state.searchQuery.trim()) {
+        const q = state.searchQuery.toLowerCase();
+        filtered = filtered.filter(a => 
+          a.clientName.toLowerCase().includes(q) ||
+          a.clientPhone.includes(q) ||
+          a.serviceName.toLowerCase().includes(q)
+        );
+      }
+
+      return `
+        <div class="space-y-4">
+          <!-- Barra de Búsqueda y Filtros Rápidos -->
+          <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="relative w-full sm:w-80">
+              <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+              <input 
+                type="text" 
+                placeholder="Buscar por cliente, teléfono o servicio..." 
+                value="${state.searchQuery}"
+                oninput="handleSearch(this.value)"
+                class="w-full bg-slate-50 border border-slate-300 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <!-- Filtros de Estado -->
+            <div class="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
+              ${['all', 'today', 'pendiente', 'confirmado', 'cancelado'].map(st => `
+                <button 
+                  onclick="applyFilter('${st}')"
+                  class="px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-colors whitespace-nowrap cursor-pointer ${
+                    state.statusFilter === st 
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }"
+                >
+                  ${st === 'all' ? 'Todos' : st === 'today' ? 'Hoy' : st}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Tabla de Turnos -->
+          <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px]">
+                  <tr>
+                    <th class="py-3 px-4">Fecha y Hora</th>
+                    <th class="py-3 px-4">Cliente</th>
+                    <th class="py-3 px-4">Servicio</th>
+                    <th class="py-3 px-4">Precio / Cobrado</th>
+                    <th class="py-3 px-4">Estado (Editar)</th>
+                    <th class="py-3 px-4 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 font-medium text-slate-800">
+                  ${filtered.length === 0 ? `
+                    <tr><td colspan="6" class="p-8 text-center text-slate-400">No se encontraron turnos con los filtros actuales.</td></tr>
+                  ` : filtered.map(app => `
+                    <tr class="hover:bg-slate-50/70 transition-colors">
+                      <td class="py-3 px-4 whitespace-nowrap">
+                        <span class="font-bold text-slate-900">${app.date}</span>
+                        <span class="text-slate-500 block font-mono text-[11px]">${app.startTime} - ${app.endTime} hs</span>
+                      </td>
+                      <td class="py-3 px-4">
+                        <span class="font-bold text-slate-900">${app.clientName}</span>
+                        <span class="text-slate-500 block font-mono text-[11px]">${app.clientPhone || 'Sin teléfono'}</span>
+                      </td>
+                      <td class="py-3 px-4">
+                        <span class="font-semibold text-slate-800">${app.serviceName}</span>
+                        <span class="text-slate-400 block text-[10px]">${app.durationMinutes} min</span>
+                      </td>
+                      <td class="py-3 px-4 font-mono whitespace-nowrap">
+                        <span class="font-bold text-slate-900">${formatCurrencyARS(app.price)}</span>
+                        <span class="text-emerald-700 block text-[10px]">Cobrado: ${formatCurrencyARS(app.amountPaid)}</span>
+                      </td>
+                      <td class="py-3 px-4 whitespace-nowrap">
+                        <select 
+                          onchange="changeAppointmentStatus('${app.id}', this.value)"
+                          class="text-[11px] font-bold px-2 py-1 rounded-lg border cursor-pointer ${
+                            app.status === 'confirmado' ? 'bg-emerald-50 text-emerald-800 border-emerald-300' :
+                            app.status === 'pendiente' ? 'bg-amber-50 text-amber-800 border-amber-300' :
+                            app.status === 'cancelado' ? 'bg-rose-50 text-rose-800 border-rose-300' :
+                            'bg-slate-100 text-slate-700 border-slate-300'
+                          }"
+                        >
+                          <option value="pendiente" ${app.status === 'pendiente' ? 'selected' : ''}>Pendiente</option>
+                          <option value="confirmado" ${app.status === 'confirmado' ? 'selected' : ''}>Confirmado</option>
+                          <option value="completado" ${app.status === 'completado' ? 'selected' : ''}>Completado</option>
+                          <option value="cancelado" ${app.status === 'cancelado' ? 'selected' : ''}>Cancelado</option>
+                          <option value="ausente" ${app.status === 'ausente' ? 'selected' : ''}>Ausente</option>
+                        </select>
+                      </td>
+                      <td class="py-3 px-4 text-right whitespace-nowrap">
+                        <div class="flex items-center justify-end gap-1">
+                          ${app.clientPhone ? `
+                            <a 
+                              href="https://wa.me/${normalizeArgentinePhone(app.clientPhone)}?text=${encodeURIComponent(`Hola ${app.clientName}! Te contactamos de ${state.settings.businessName} por tu turno del ${app.date} a las ${app.startTime}hs.`)}"
+                              target="_blank" 
+                              class="p-1.5 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-200"
+                              title="Enviar WhatsApp"
+                            >
+                              <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                            </a>
+                          ` : ''}
+                          <button onclick="openAppointmentModal('${app.id}')" class="p-1.5 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer" title="Editar turno completo">
+                            <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+                          </button>
+                          <button onclick="deleteAppointment('${app.id}', ${app.numericId})" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer" title="Eliminar de Supabase">
+                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // 10.3 AGENDA / CALENDARIO
+    function renderCalendarView() {
+      const today = getTodayString();
+      const todayApps = state.appointments.filter(a => a.date === today);
+
+      return `
+        <div class="space-y-4">
+          <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+            <div>
+              <h3 class="font-bold text-base text-slate-900">Agenda Diaria y Bloques Horarios</h3>
+              <p class="text-xs text-slate-500">Visualización de franjas horarias y disponibilidad</p>
+            </div>
+            <button onclick="openAppointmentModal(null, '${today}')" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer">
+              + Nuevo Turno
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            ${todayApps.length === 0 ? `
+              <div class="col-span-full p-12 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 text-xs">
+                No hay turnos registrados para hoy. ¡Hacé clic en "Nuevo Turno" para agendar!
+              </div>
+            ` : todayApps.map(app => `
+              <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-2 hover:border-blue-300 transition-colors">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                    ${app.startTime} - ${app.endTime} hs
+                  </span>
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
+                    app.status === 'confirmado' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'
+                  }">${app.status}</span>
+                </div>
+                <h4 class="font-bold text-sm text-slate-900">${app.clientName}</h4>
+                <p class="text-xs text-slate-500">${app.serviceName} (${app.durationMinutes} min)</p>
+                <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+                  <span class="font-mono font-bold text-slate-800">${formatCurrencyARS(app.price)}</span>
+                  <button onclick="openAppointmentModal('${app.id}')" class="text-blue-600 hover:underline text-[11px] font-semibold cursor-pointer">Editar Turno</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // 10.4 CLIENTES
+    function renderClientsView() {
+      return `
+        <div class="space-y-4">
+          <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+            <div>
+              <h3 class="font-bold text-base text-slate-900">Directorio de Clientes</h3>
+              <p class="text-xs text-slate-500">Historial de visitas y contactos registrados</p>
+            </div>
+            <span class="text-xs font-mono font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+              ${state.clients.length} clientes totales
+            </span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            ${state.clients.map(cli => `
+              <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+                <div class="flex items-start justify-between">
+                  <div>
+                    <h4 class="font-bold text-sm text-slate-900">${cli.name}</h4>
+                    <p class="text-xs font-mono text-slate-500 mt-0.5">${cli.phone || 'Sin teléfono'}</p>
+                  </div>
+                  <span class="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full">
+                    ${cli.totalVisits} ${cli.totalVisits === 1 ? 'turno' : 'turnos'}
+                  </span>
+                </div>
+                <div class="pt-2 border-t border-slate-100 text-xs flex items-center justify-between">
+                  <span class="text-slate-500">Total invertido: <strong class="font-mono text-slate-800">${formatCurrencyARS(cli.totalSpent)}</strong></span>
+                  ${cli.phone ? `
+                    <a 
+                      href="https://wa.me/${normalizeArgentinePhone(cli.phone)}" 
+                      target="_blank" 
+                      class="px-2.5 py-1 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg text-xs font-bold border border-emerald-200"
+                    >
+                      WhatsApp
+                    </a>
+                  ` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // 10.5 CATÁLOGO DE SERVICIOS (CON CRUD COMPLETO: AGREGAR, EDITAR, ELIMINAR)
+    function renderServicesCatalogView() {
+      return `
+        <div class="space-y-4">
+          <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+            <div>
+              <h3 class="font-bold text-base text-slate-900">Catálogo de Servicios ('servicios')</h3>
+              <p class="text-xs text-slate-500">Configuración sincronizada con Supabase (Crear, Editar y Eliminar)</p>
+            </div>
+            <button onclick="openManageServicesModal()" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer">
+              + Administrar Servicios
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            ${state.services.map(s => `
+              <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs space-y-3">
+                <div class="flex items-center justify-between">
+                  <span class="text-[10px] font-bold uppercase tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                    ${s.category || 'Servicio'}
+                  </span>
+                  <span class="text-xs font-mono font-bold text-slate-800">${formatCurrencyARS(s.price)}</span>
+                </div>
+                <h4 class="font-bold text-base text-slate-900">${s.name}</h4>
+                <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                  <span>Duración: <strong>${s.durationMinutes} minutos</strong></span>
+                  <div class="flex items-center gap-2">
+                    <button onclick="startEditService('${s.id}')" class="text-blue-600 hover:underline text-[11px] font-bold cursor-pointer">
+                      Editar
+                    </button>
+                    <button onclick="deleteServiceFromCloud('${s.id}')" class="text-rose-600 hover:underline text-[11px] font-semibold cursor-pointer">
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    // 10.6 CONFIGURACIÓN
+    function renderSettingsView() {
+      return `
+        <div class="max-w-2xl bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-5">
+          <div>
+            <h3 class="font-bold text-base text-slate-900">Configuración del Negocio</h3>
+            <p class="text-xs text-slate-500">Datos informativos de la cuenta y medios de pago</p>
+          </div>
+
+          <div class="space-y-3 text-xs">
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Nombre del Negocio o Estudio</label>
+              <input type="text" id="settingBusinessName" value="${state.settings.businessName}" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900">
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Nombre del Profesional a Cargo</label>
+              <input type="text" id="settingOwnerName" value="${state.settings.ownerName}" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900">
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Teléfono de Contacto</label>
+              <input type="text" id="settingPhone" value="${state.settings.phone}" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900">
+            </div>
+            <div>
+              <label class="block font-bold text-slate-700 mb-1">Alias de Mercado Pago / Transferencia</label>
+              <input type="text" id="settingAlias" value="${state.settings.paymentAlias}" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900">
+            </div>
+          </div>
+
+          <button onclick="saveSettings()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold cursor-pointer">
+            Guardar Cambios
+          </button>
+        </div>
+      `;
+    }
+
+    function saveSettings() {
+      state.settings.businessName = document.getElementById('settingBusinessName').value.trim();
+      state.settings.ownerName = document.getElementById('settingOwnerName').value.trim();
+      state.settings.phone = document.getElementById('settingPhone').value.trim();
+      state.settings.paymentAlias = document.getElementById('settingAlias').value.trim();
+      showToast('Configuración guardada correctamente.', 'success');
+      renderApp();
+    }
+
+    // ==========================================
+    // 11. MODAL "NUEVO TURNO" (SERVICIO DINÁMICO Y EDITABLE)
+    // ==========================================
+    function renderAppointmentModal() {
+      if (!state.isAppointmentModalOpen) return '';
+
+      const isEdit = !!state.editingAppointment;
+      const app = state.editingAppointment || {
+        clientName: '',
+        clientPhone: '',
+        clientEmail: '',
+        serviceName: state.services[0]?.name || 'Consulta Estándar',
+        serviceId: state.services[0]?.id || 'srv-1',
+        date: getTodayString(),
+        startTime: '10:00',
+        durationMinutes: 45,
+        price: 15000,
+        amountPaid: 0,
+        paymentMethod: 'Efectivo',
+        status: 'pendiente',
+        notes: ''
+      };
+
+      return `
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/60 backdrop-blur-xs overflow-y-auto">
+          <div class="bg-white rounded-2xl shadow-2xl max-w-xl w-full border border-slate-200 overflow-hidden flex flex-col my-4 max-h-[94vh]">
+            <!-- Encabezado Modal -->
+            <div class="bg-slate-900 px-6 py-4 flex items-center justify-between text-white shrink-0">
+              <div class="flex items-center gap-2.5">
+                <i data-lucide="calendar" class="w-5 h-5 text-blue-400"></i>
+                <h3 class="font-bold text-base text-white">${isEdit ? 'Editar Turno' : 'Nuevo Turno'}</h3>
+              </div>
+              <button onclick="closeAppointmentModal()" class="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer">
+                <i data-lucide="x" class="w-5 h-5"></i>
+              </button>
+            </div>
+
+            <!-- Formulario -->
+            <form onsubmit="handleAppointmentFormSubmit(event)" class="p-6 overflow-y-auto space-y-4 text-xs">
+              <!-- Cliente -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1">Nombre del Cliente *</label>
+                  <input type="text" id="modalClientName" required value="${app.clientName}" placeholder="Ej: Mateo Silva" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900">
+                </div>
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1">Teléfono (WhatsApp) *</label>
+                  <input type="text" id="modalClientPhone" required value="${app.clientPhone}" placeholder="Ej: 11 4455-6677" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono text-slate-900">
+                </div>
+              </div>
+
+              <!-- CAMPO SERVICIO DINÁMICO Y EDITABLE + BOTÓN MANAGE SERVICES (+) -->
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="font-bold text-slate-700 flex items-center gap-1">
+                    <span>Servicio *</span>
+                    <span class="text-[10px] text-blue-600 font-normal">(Escribe o selecciona)</span>
+                  </label>
+                  <span class="text-[10px] text-slate-400">Totalmente editable</span>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <!-- Input editable para el nombre del servicio -->
+                  <div class="relative flex-1">
+                    <input 
+                      type="text" 
+                      id="modalServiceNameInput" 
+                      required 
+                      value="${app.serviceName}" 
+                      placeholder="Escribe cualquier servicio personalizado..." 
+                      oninput="onServiceInputChange(this.value)"
+                      class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 font-medium"
+                    />
+                  </div>
+
+                  <!-- Dropdown selector de servicios del catálogo -->
+                  <select 
+                    id="modalServiceSelect" 
+                    onchange="onServiceSelectChange(this.value)"
+                    class="bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-2 text-xs text-slate-800 font-medium max-w-[150px] cursor-pointer"
+                  >
+                    <option value="">Elegir de lista...</option>
+                    ${state.services.map(s => `
+                      <option value="${s.id}" ${s.name === app.serviceName ? 'selected' : ''}>
+                        ${s.name} (${s.durationMinutes}m)
+                      </option>
+                    `).join('')}
+                  </select>
+
+                  <!-- BOTÓN "MANAGE SERVICES" (+) -->
+                  <button 
+                    type="button" 
+                    onclick="openManageServicesModal()"
+                    class="flex items-center gap-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-3 py-2 rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0"
+                    title="Administrar catálogo de servicios (Agregar, editar o eliminar)"
+                  >
+                    <i data-lucide="plus" class="w-4 h-4 stroke-[3]"></i>
+                    <span class="hidden sm:inline">Servicios</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Fecha y Horario -->
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1">Fecha *</label>
+                  <input type="date" id="modalDate" required value="${app.date}" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono text-slate-900">
+                </div>
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1">Hora Inicio *</label>
+                  <input type="time" id="modalStartTime" required value="${app.startTime}" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono text-slate-900">
+                </div>
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1">Duración (minutos)</label>
+                  <input type="number" id="modalDuration" min="5" step="5" value="${app.durationMinutes}" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono text-slate-900">
+                </div>
+              </div>
+
+              <!-- Finanzas y Estado -->
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1">Precio Total ($)</label>
+                  <input type="number" id="modalPrice" min="0" step="100" value="${app.price}" class="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-mono text-slate-900 font-bold">
+                </div>
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1">Total Cobrado ($)</label>
+                  <input type="number" id="modalPaid" min="0" step="100" value="${app.amountPaid}" class="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-mono text-slate-900 text-emerald-700 font-bold">
+                </div>
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1">Estado</label>
+                  <select id="modalStatus" class="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 font-bold">
+                    <option value="pendiente" ${app.status === 'pendiente' ? 'selected' : ''}>Pendiente</option>
+                    <option value="confirmado" ${app.status === 'confirmado' ? 'selected' : ''}>Confirmado</option>
+                    <option value="completado" ${app.status === 'completado' ? 'selected' : ''}>Completado</option>
+                    <option value="cancelado" ${app.status === 'cancelado' ? 'selected' : ''}>Cancelado</option>
+                    <option value="ausente" ${app.status === 'ausente' ? 'selected' : ''}>Ausente</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label class="block font-bold text-slate-700 mb-1">Notas u Observaciones</label>
+                <textarea id="modalNotes" rows="2" placeholder="Observaciones adicionales del turno..." class="w-full bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs text-slate-900">${app.notes || ''}</textarea>
+              </div>
+
+              <!-- Botones Modal -->
+              <div class="pt-3 border-t border-slate-200 flex items-center justify-between">
+                <div>
+                  ${isEdit ? `
+                    <button type="button" onclick="deleteAppointment('${app.id}', ${app.numericId})" class="text-rose-600 hover:text-rose-700 font-bold text-xs cursor-pointer">
+                      Eliminar Turno
+                    </button>
+                  ` : ''}
+                </div>
+                <div class="flex items-center gap-2">
+                  <button type="button" onclick="closeAppointmentModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer">
+                    Cancelar
+                  </button>
+                  <button type="submit" class="px-5 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-lg shadow-xs cursor-pointer">
+                    ${isEdit ? 'Guardar Cambios' : 'Crear Turno'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    function onServiceSelectChange(serviceId) {
+      if (!serviceId) return;
+      const s = state.services.find(x => x.id === serviceId);
+      if (s) {
+        document.getElementById('modalServiceNameInput').value = s.name;
+        document.getElementById('modalDuration').value = s.durationMinutes;
+        document.getElementById('modalPrice').value = s.price;
+      }
+    }
+
+    function onServiceInputChange(val) {
+      const match = state.services.find(s => s.name.toLowerCase() === val.trim().toLowerCase());
+      if (match) {
+        document.getElementById('modalDuration').value = match.durationMinutes;
+        document.getElementById('modalPrice').value = match.price;
+      }
+    }
+
+    function handleAppointmentFormSubmit(e) {
+      e.preventDefault();
+      const clientName = document.getElementById('modalClientName').value.trim();
+      const clientPhone = document.getElementById('modalClientPhone').value.trim();
+      const serviceName = document.getElementById('modalServiceNameInput').value.trim();
+      const date = document.getElementById('modalDate').value;
+      const startTime = document.getElementById('modalStartTime').value;
+      const durationMinutes = Number(document.getElementById('modalDuration').value) || 30;
+      const price = Number(document.getElementById('modalPrice').value) || 0;
+      const amountPaid = Number(document.getElementById('modalPaid').value) || 0;
+      const status = document.getElementById('modalStatus').value;
+      const notes = document.getElementById('modalNotes').value.trim();
+      const endTime = addMinutesToTime(startTime, durationMinutes);
+
+      const payload = {
+        id: state.editingAppointment ? state.editingAppointment.id : `app-${Date.now()}`,
+        numericId: state.editingAppointment ? state.editingAppointment.numericId : null,
+        clientId: state.editingAppointment ? state.editingAppointment.clientId : `cli-${Date.now()}`,
+        clientName,
+        clientPhone,
+        serviceName,
+        date,
+        startTime,
+        endTime,
+        durationMinutes,
+        price,
+        amountPaid,
+        status,
+        notes
+      };
+
+      saveAppointment(payload);
+    }
+
+    // ==========================================
+    // 12. MODAL "MANAGE SERVICES" (AGREGAR, EDITAR Y ELIMINAR SERVICIOS)
+    // ==========================================
+    function renderManageServicesModal() {
+      if (!state.isManageServicesModalOpen) return '';
+
+      const editingService = state.editingServiceId 
+        ? state.services.find(s => s.id === state.editingServiceId) 
+        : null;
+
+      return `
+        <div class="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs overflow-y-auto">
+          <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full border border-slate-200 overflow-hidden flex flex-col my-4 max-h-[90vh]">
+            <div class="bg-slate-900 px-6 py-4 flex items-center justify-between text-white shrink-0">
+              <div class="flex items-center gap-2">
+                <i data-lucide="briefcase" class="w-5 h-5 text-blue-400"></i>
+                <h3 class="font-bold text-base text-white">
+                  ${editingService ? 'Editar Servicio' : 'Administrar Servicios (\'servicios\')'}
+                </h3>
+              </div>
+              <button onclick="closeManageServicesModal()" class="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer">
+                <i data-lucide="x" class="w-5 h-5"></i>
+              </button>
+            </div>
+
+            <div class="p-5 space-y-4 overflow-y-auto text-xs">
+              <!-- Formulario Agregar / Editar Servicio -->
+              <form onsubmit="handleManageServiceSubmit(event)" class="${editingService ? 'bg-amber-50/70 border-amber-200' : 'bg-blue-50/60 border-blue-100'} p-4 rounded-xl border space-y-3">
+                <div class="flex items-center justify-between">
+                  <h4 class="font-bold ${editingService ? 'text-amber-900' : 'text-blue-900'} flex items-center gap-1.5">
+                    <i data-lucide="${editingService ? 'edit-3' : 'plus-circle'}" class="w-4 h-4 ${editingService ? 'text-amber-600' : 'text-blue-600'}"></i>
+                    <span>${editingService ? `Editar: ${editingService.name}` : 'Agregar Nuevo Servicio'}</span>
+                  </h4>
+                  ${editingService ? `
+                    <button type="button" onclick="cancelEditService()" class="text-[11px] font-semibold text-slate-500 hover:text-slate-800 underline cursor-pointer">
+                      Cancelar edición
+                    </button>
+                  ` : ''}
+                </div>
+
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1">Nombre del Servicio *</label>
+                  <input 
+                    type="text" 
+                    id="serviceFormName" 
+                    required 
+                    value="${editingService ? editingService.name : ''}"
+                    placeholder="Ej: Masaje Descontracturante, Asesoría Legal..." 
+                    class="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-900"
+                  />
+                </div>
+
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="block font-bold text-slate-700 mb-1">Duración (min)</label>
+                    <input 
+                      type="number" 
+                      id="serviceFormDuration" 
+                      value="${editingService ? editingService.durationMinutes : 45}" 
+                      min="5" 
+                      step="5" 
+                      class="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label class="block font-bold text-slate-700 mb-1">Precio ($ ARS)</label>
+                    <input 
+                      type="number" 
+                      id="serviceFormPrice" 
+                      value="${editingService ? editingService.price : 15000}" 
+                      min="0" 
+                      step="100" 
+                      class="w-full bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
+                <button type="submit" class="w-full py-2 ${editingService ? 'bg-amber-600 hover:bg-amber-500' : 'bg-blue-600 hover:bg-blue-500'} text-white font-bold rounded-lg shadow-xs cursor-pointer transition-colors">
+                  ${editingService ? 'Guardar Cambios del Servicio' : 'Guardar en Base de Datos (Supabase)'}
+                </button>
+              </form>
+
+              <!-- Lista de Servicios Actuales -->
+              <div class="space-y-2">
+                <h4 class="font-bold text-slate-700">Servicios en Catálogo (${state.services.length})</h4>
+                <div id="manageServicesList" class="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden max-h-56 overflow-y-auto">
+                  ${renderManageServicesListHtml()}
+                </div>
+              </div>
+            </div>
+
+            <div class="px-6 py-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button onclick="closeManageServicesModal()" class="px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 rounded-lg cursor-pointer">
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderManageServicesListHtml() {
+      return state.services.map(s => `
+        <div class="p-3 flex items-center justify-between gap-2 hover:bg-slate-50 ${state.editingServiceId === s.id ? 'bg-amber-50/50' : ''}">
+          <div class="min-w-0">
+            <h5 class="font-bold text-slate-900 text-xs truncate">${s.name}</h5>
+            <p class="text-[11px] text-slate-500 font-mono">${s.durationMinutes} min · ${formatCurrencyARS(s.price)}</p>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button onclick="selectServiceForAppointment('${s.name}', ${s.durationMinutes}, ${s.price})" class="px-2 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded border border-blue-200 cursor-pointer" title="Cargar en el turno actual">
+              Usar
+            </button>
+            <button onclick="startEditService('${s.id}')" class="p-1 text-slate-500 hover:text-blue-600 rounded cursor-pointer" title="Editar servicio">
+              <i data-lucide="edit-3" class="w-3.5 h-3.5"></i>
+            </button>
+            <button onclick="deleteServiceFromCloud('${s.id}')" class="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer" title="Eliminar servicio">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderManageServicesList() {
+      const container = document.getElementById('manageServicesList');
+      if (container) {
+        container.innerHTML = renderManageServicesListHtml();
+        if (window.lucide) window.lucide.createIcons();
+      }
+    }
+
+    function startEditService(serviceId) {
+      state.editingServiceId = serviceId;
+      state.isManageServicesModalOpen = true;
+      renderApp();
+    }
+
+    function cancelEditService() {
+      state.editingServiceId = null;
+      renderApp();
+    }
+
+    async function handleManageServiceSubmit(e) {
+      e.preventDefault();
+      const name = document.getElementById('serviceFormName').value;
+      const duration = document.getElementById('serviceFormDuration').value;
+      const price = document.getElementById('serviceFormPrice').value;
+
+      if (state.editingServiceId) {
+        await updateServiceInCloud(state.editingServiceId, name, duration, price, 'Servicios');
+      } else {
+        await createServiceInCloud(name, duration, price, 'Servicios');
+      }
+
+      state.editingServiceId = null;
+      renderApp();
+    }
+
+    function selectServiceForAppointment(name, duration, price) {
+      const nameInput = document.getElementById('modalServiceNameInput');
+      const durationInput = document.getElementById('modalDuration');
+      const priceInput = document.getElementById('modalPrice');
+      if (nameInput) nameInput.value = name;
+      if (durationInput) durationInput.value = duration;
+      if (priceInput) priceInput.value = price;
+      closeManageServicesModal();
+    }
+
+    // ==========================================
+    // 13. ALERTA FLOTANTE Y MODAL DE 10 / 5 MINUTOS
+    // ==========================================
+    function renderAlertBanner() {
+      const container = document.getElementById('alertBannerContainer');
+      if (!container) return;
+
+      if (state.upcomingAlerts.length === 0) {
+        container.innerHTML = '';
+        return;
+      }
+
+      container.innerHTML = state.upcomingAlerts.map(({ appointment: app, minutesLeft }) => `
+        <div class="bg-amber-500 text-slate-950 p-3 sm:px-4 rounded-2xl shadow-xl border-2 border-amber-300 flex items-center justify-between gap-3 animate-bounce">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <i data-lucide="bell-ring" class="w-5 h-5 text-slate-950 shrink-0"></i>
+            <div class="min-w-0">
+              <p class="font-black text-xs">¡ATENCIÓN! Turno en ${minutesLeft} minutos</p>
+              <p class="text-[11px] font-semibold truncate">${app.clientName} · ${app.serviceName} a las ${app.startTime}hs</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            ${app.clientPhone ? `
+              <a 
+                href="https://wa.me/${normalizeArgentinePhone(app.clientPhone)}?text=${encodeURIComponent(`Hola ${app.clientName}! Te esperamos en 10 minutos para tu turno en ${state.settings.businessName}.`)}"
+                target="_blank" 
+                class="px-2.5 py-1 bg-slate-950 text-amber-300 hover:bg-slate-800 rounded-lg text-xs font-bold"
+              >
+                Avisar WhatsApp
+              </a>
+            ` : ''}
+            <button onclick="dismissAlert('${app.id}')" class="p-1 hover:bg-amber-600 rounded-lg cursor-pointer">
+              <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+      `).join('');
+
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function dismissAlert(appId) {
+      state.upcomingAlerts = state.upcomingAlerts.filter(a => a.appointment.id !== appId);
+      renderAlertBanner();
+    }
+
+    function renderAlarmModal() {
+      if (!state.isAlarmModalOpen || !state.alarmAppointment) return '';
+      const app = state.alarmAppointment;
+
+      return `
+        <div class="fixed inset-0 z-70 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 text-center border-4 border-amber-400 space-y-4">
+            <div class="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center mx-auto animate-pulse">
+              <i data-lucide="bell" class="w-8 h-8"></i>
+            </div>
+            <div>
+              <h3 class="text-xl font-black text-slate-900">¡Alarma de Turno Próximo!</h3>
+              <p class="text-xs text-slate-500 mt-1">El turno comenzará en aproximadamente 5 minutos</p>
+            </div>
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-left text-xs space-y-1">
+              <p class="font-bold text-sm text-slate-900">${app.clientName}</p>
+              <p class="text-slate-600">${app.serviceName} (${app.durationMinutes} min)</p>
+              <p class="font-mono font-bold text-blue-700">Horario: ${app.startTime} hs</p>
+            </div>
+            <button onclick="state.isAlarmModalOpen = false; renderApp();" class="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl text-xs shadow-md cursor-pointer">
+              Entendido
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    // ==========================================
+    // 14. PANTALLA DE AUTENTICACIÓN (LOGIN, SIGNUP Y RECUPERACIÓN REAL DE CONTRASEÑA)
+    // ==========================================
+    function renderAuthScreen() {
+      return `
+        <div class="min-h-screen bg-slate-100 flex flex-col justify-center items-center px-4 py-8 relative">
+          <div class="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-200/80 overflow-hidden">
+            <!-- Cabecera -->
+            <div class="bg-slate-900 text-white p-7 text-center">
+              <div class="w-16 h-16 rounded-2xl bg-slate-800 p-1 mx-auto shadow-lg mb-3 flex items-center justify-center">
+                <img src="https://i.postimg.cc/Yq5ZGfpz/Gemini-Generated-Image-9wbbqy9wbbqy9wbb-modified.png" alt="Logo" class="w-full h-full object-contain">
+              </div>
+              <h2 class="text-2xl font-black tracking-tight text-white">Recepcionista Pro</h2>
+              <p class="text-xs text-slate-300 mt-1">Gestión de turnos con base de datos en la nube (Supabase)</p>
+            </div>
+
+            <!-- Pestañas Claras: Iniciar Sesión vs Registrarse -->
+            <div class="flex border-b border-slate-200 bg-slate-50/60">
+              <button 
+                onclick="setAuthMode('login')"
+                class="flex-1 py-3 text-xs font-bold text-center transition-all cursor-pointer ${
+                  state.authMode === 'login' 
+                    ? 'bg-white text-blue-700 border-b-2 border-blue-600 shadow-xs' 
+                    : 'text-slate-600 hover:text-slate-900'
+                }"
+              >
+                Iniciar Sesión
+              </button>
+              <button 
+                onclick="setAuthMode('signup')"
+                class="flex-1 py-3 text-xs font-bold text-center transition-all cursor-pointer ${
+                  state.authMode === 'signup' 
+                    ? 'bg-white text-blue-700 border-b-2 border-blue-600 shadow-xs' 
+                    : 'text-slate-600 hover:text-slate-900'
+                }"
+              >
+                Crear Cuenta Nueva
+              </button>
+            </div>
+
+            <!-- Formulario de Auth -->
+            <form onsubmit="handleAuthSubmit(event)" class="p-6 sm:p-7 space-y-4">
+              <!-- Mensaje de Error de Alto Nivel -->
+              ${state.authErrorMessage ? `
+                <div class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5">
+                  <i data-lucide="alert-circle" class="w-4 h-4 text-rose-600 shrink-0 mt-0.5"></i>
+                  <p class="leading-snug">${state.authErrorMessage}</p>
+                </div>
+              ` : ''}
+
+              <!-- Mensaje Informativo de Éxito -->
+              ${state.authSuccessMessage ? `
+                <div class="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-start gap-2.5">
+                  <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5"></i>
+                  <p class="leading-snug">${state.authSuccessMessage}</p>
+                </div>
+              ` : ''}
+
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1.5">Correo Electrónico</label>
+                <input 
+                  type="email" 
+                  id="authEmail" 
+                  required 
+                  placeholder="tu-correo@ejemplo.com"
+                  class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <div class="flex items-center justify-between mb-1.5">
+                  <label class="text-xs font-bold text-slate-700">Contraseña</label>
+                  ${state.authMode === 'signup' ? `
+                    <span class="text-[10px] text-slate-400">Mínimo 6 caracteres</span>
+                  ` : `
+                    <!-- ENLACE VISIBLE Y ACCESIBLE: ¿Olvidaste tu contraseña? -->
+                    <button 
+                      type="button" 
+                      onclick="openForgotPasswordModal()" 
+                      class="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                    >
+                      ¿Olvidaste tu contraseña?
+                    </button>
+                  `}
+                </div>
+                <input 
+                  type="password" 
+                  id="authPassword" 
+                  required 
+                  placeholder="••••••••"
+                  class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                ${state.authSubmitLoading ? 'disabled' : ''}
+                class="w-full mt-2 py-3 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                ${state.authSubmitLoading ? `
+                  <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                  <span>Procesando...</span>
+                ` : `
+                  <span>${state.authMode === 'signup' ? 'Registrarme en Recepcionista Pro' : 'Entrar a mi Agenda'}</span>
+                  <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                `}
+              </button>
+            </form>
+          </div>
+          <p class="mt-6 text-xs text-slate-500 text-center">Conectado con Supabase (tablas <code>recepcion</code> y <code>servicios</code>)</p>
+
+          <!-- MODAL DE RECUPERACIÓN DE CONTRASEÑA -->
+          ${renderForgotPasswordModal()}
+
+          <!-- MODAL DE RESTABLECIMIENTO DE NUEVA CONTRASEÑA (DESDE ENLACE DE EMAIL) -->
+          ${renderResetPasswordModal()}
+        </div>
+      `;
+    }
+
+    // 14.1 MODAL "¿OLVIDASTE TU CONTRASEÑA?" (SUPABASE PASSWORD RESET)
+    function renderForgotPasswordModal() {
+      if (!state.isForgotPasswordModalOpen) return '';
+
+      return `
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+          <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            <!-- Header -->
+            <div class="bg-slate-900 px-6 py-5 flex items-center justify-between text-white shrink-0">
+              <div class="flex items-center gap-2.5">
+                <div class="w-8 h-8 rounded-lg bg-blue-600/30 border border-blue-400 flex items-center justify-center text-blue-300">
+                  <i data-lucide="key-round" class="w-4 h-4"></i>
+                </div>
+                <div>
+                  <h3 class="font-bold text-base text-white">¿Olvidaste tu contraseña?</h3>
+                  <p class="text-[11px] text-slate-400">Recuperación de acceso con Supabase</p>
+                </div>
+              </div>
+              <button onclick="closeForgotPasswordModal()" class="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer">
+                <i data-lucide="x" class="w-5 h-5"></i>
+              </button>
+            </div>
+
+            <!-- Contenido del Formulario -->
+            <form onsubmit="handleForgotPasswordSubmit(event)" class="p-6 space-y-4 text-xs">
+              <p class="text-slate-600 leading-relaxed">
+                Ingresá tu correo electrónico registrado. Te enviaremos un enlace oficial de Supabase Auth para restablecer tu contraseña de forma segura.
+              </p>
+
+              <!-- Banner de Éxito -->
+              ${state.forgotPasswordSuccess ? `
+                <div class="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-start gap-2.5">
+                  <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-600 shrink-0 mt-0.5"></i>
+                  <div>
+                    <p class="font-bold">¡Enlace enviado!</p>
+                    <p class="mt-0.5 leading-snug">${state.forgotPasswordSuccess}</p>
+                  </div>
+                </div>
+              ` : ''}
+
+              <!-- Banner de Error -->
+              ${state.forgotPasswordError ? `
+                <div class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-start gap-2.5">
+                  <i data-lucide="alert-circle" class="w-5 h-5 text-rose-600 shrink-0 mt-0.5"></i>
+                  <div>
+                    <p class="font-bold">Error al enviar</p>
+                    <p class="mt-0.5 leading-snug">${state.forgotPasswordError}</p>
+                  </div>
+                </div>
+              ` : ''}
+
+              ${!state.forgotPasswordSuccess ? `
+                <div>
+                  <label class="block font-bold text-slate-700 mb-1.5">Correo Electrónico Registrado</label>
+                  <input 
+                    type="email" 
+                    id="forgotEmailInput" 
+                    required 
+                    value="${state.forgotPasswordEmail}"
+                    placeholder="nombre@ejemplo.com"
+                    class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <button 
+                  type="submit" 
+                  ${state.forgotPasswordLoading ? 'disabled' : ''}
+                  class="w-full py-3 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  ${state.forgotPasswordLoading ? `
+                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                    <span>Enviando enlace...</span>
+                  ` : `
+                    <span>Enviar enlace de recuperación</span>
+                    <i data-lucide="send" class="w-4 h-4"></i>
+                  `}
+                </button>
+              ` : `
+                <button 
+                  type="button" 
+                  onclick="closeForgotPasswordModal()" 
+                  class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl transition-all cursor-pointer"
+                >
+                  Volver al inicio de sesión
+                </button>
+              `}
+
+              ${!state.forgotPasswordSuccess ? `
+                <div class="text-center pt-2">
+                  <button 
+                    type="button" 
+                    onclick="closeForgotPasswordModal()" 
+                    class="text-slate-500 hover:text-slate-900 font-semibold cursor-pointer"
+                  >
+                    ← Regresar al inicio de sesión
+                  </button>
+                </div>
+              ` : ''}
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    function openForgotPasswordModal() {
+      const currentEmail = document.getElementById('authEmail')?.value?.trim() || '';
+      state.forgotPasswordEmail = currentEmail;
+      state.forgotPasswordLoading = false;
+      state.forgotPasswordError = null;
+      state.forgotPasswordSuccess = null;
+      state.isForgotPasswordModalOpen = true;
+      renderApp();
+    }
+
+    function closeForgotPasswordModal() {
+      state.isForgotPasswordModalOpen = false;
+      state.forgotPasswordError = null;
+      state.forgotPasswordSuccess = null;
+      renderApp();
+    }
+
+    // Ejecución real de supabaseClient.auth.resetPasswordForEmail(email)
+    async function handleForgotPasswordSubmit(e) {
+      e.preventDefault();
+      const inputEl = document.getElementById('forgotEmailInput');
+      const email = inputEl ? inputEl.value.trim() : state.forgotPasswordEmail.trim();
+
+      if (!email) {
+        state.forgotPasswordError = 'Por favor ingresa un correo electrónico.';
+        renderApp();
+        return;
+      }
+
+      state.forgotPasswordEmail = email;
+      state.forgotPasswordLoading = true;
+      state.forgotPasswordError = null;
+      state.forgotPasswordSuccess = null;
+      renderApp();
+
+      try {
+        if (!supabaseClient) {
+          throw new Error('El cliente de Supabase no se encuentra inicializado.');
+        }
+
+        const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        state.forgotPasswordSuccess = `Revisa tu casilla de correo en ${email} (incluida la carpeta de spam o promociones) para continuar con el restablecimiento de tu contraseña.`;
+      } catch (err) {
+        console.error('Error al solicitar reset de contraseña:', err);
+        state.forgotPasswordError = err.message || 'Error al procesar la recuperación de contraseña.';
+      } finally {
+        state.forgotPasswordLoading = false;
+        renderApp();
+      }
+    }
+
+    // 14.2 MODAL DE RESTABLECIMIENTO (CUANDO VIENE DEL LINK DE EMAIL CON #type=recovery)
+    function renderResetPasswordModal() {
+      if (!state.isResetPasswordModalOpen) return '';
+
+      return `
+        <div class="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
+          <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden flex flex-col">
+            <div class="bg-slate-900 px-6 py-5 text-white">
+              <h3 class="font-bold text-base text-white">Restablecer tu Contraseña</h3>
+              <p class="text-xs text-slate-400 mt-0.5">Ingresá tu nueva clave para actualizar tu acceso</p>
+            </div>
+
+            <form onsubmit="handleUpdatePasswordSubmit(event)" class="p-6 space-y-4 text-xs">
+              ${state.resetPasswordError ? `
+                <div class="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs">
+                  ${state.resetPasswordError}
+                </div>
+              ` : ''}
+
+              ${state.resetPasswordSuccess ? `
+                <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs">
+                  ${state.resetPasswordSuccess}
+                </div>
+              ` : ''}
+
+              <div>
+                <label class="block font-bold text-slate-700 mb-1.5">Nueva Contraseña (mínimo 6 caracteres)</label>
+                <input 
+                  type="password" 
+                  id="newPasswordInput" 
+                  required 
+                  minlength="6"
+                  placeholder="••••••••"
+                  class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                ${state.resetPasswordLoading ? 'disabled' : ''}
+                class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl shadow-md transition-all cursor-pointer"
+              >
+                ${state.resetPasswordLoading ? 'Actualizando...' : 'Guardar Nueva Contraseña'}
+              </button>
+            </form>
+          </div>
+        </div>
+      `;
+    }
+
+    async function handleUpdatePasswordSubmit(e) {
+      e.preventDefault();
+      const input = document.getElementById('newPasswordInput');
+      const newPassword = input ? input.value : '';
+
+      if (!newPassword || newPassword.length < 6) {
+        state.resetPasswordError = 'La contraseña debe tener al menos 6 caracteres.';
+        renderApp();
+        return;
+      }
+
+      state.resetPasswordLoading = true;
+      state.resetPasswordError = null;
+      renderApp();
+
+      try {
+        if (!supabaseClient) throw new Error('Cliente Supabase no disponible.');
+        const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+        if (error) throw error;
+
+        state.resetPasswordSuccess = '¡Contraseña actualizada exitosamente! Ingresando a tu cuenta...';
+        showToast('Contraseña restablecida con éxito', 'success');
+        setTimeout(() => {
+          state.isResetPasswordModalOpen = false;
+          window.location.hash = '';
+          renderApp();
+        }, 1800);
+      } catch (err) {
+        state.resetPasswordError = err.message || 'Error al actualizar contraseña.';
+      } finally {
+        state.resetPasswordLoading = false;
+        renderApp();
+      }
+    }
+
+    // 14.3 LOGIN & SIGNUP (SUBMIT)
+    async function handleAuthSubmit(e) {
+      e.preventDefault();
+      state.authErrorMessage = null;
+      state.authSuccessMessage = null;
+
+      const email = document.getElementById('authEmail').value.trim();
+      const password = document.getElementById('authPassword').value;
+
+      if (!email || !password) {
+        state.authErrorMessage = 'Por favor completa correo y contraseña.';
+        renderApp();
+        return;
+      }
+
+      state.authSubmitLoading = true;
+      renderApp();
+
+      try {
+        if (!supabaseClient) {
+          throw new Error('Supabase no está conectado. Revisa tu conexión a internet.');
+        }
+
+        if (state.authMode === 'signup') {
+          // Registro con supabaseClient.auth.signUp()
+          const { data, error } = await supabaseClient.auth.signUp({ email, password });
+          if (error) throw error;
+
+          if (data.session) {
+            state.user = data.user;
+            showToast('¡Bienvenido a Recepcionista Pro!', 'success');
+          } else {
+            state.authSuccessMessage = '¡Cuenta creada! Ya puedes iniciar sesión con tus credenciales.';
+            state.authMode = 'login';
+            showToast('Cuenta creada con éxito', 'success');
+          }
+        } else {
+          // Inicio de sesión con supabaseClient.auth.signInWithPassword()
+          const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+          if (error) {
+            if (error.message.includes('Invalid login credentials')) {
+              throw new Error('Correo o contraseña incorrectos. Por favor verifica tus datos.');
+            }
+            throw error;
+          }
+          if (data.user) {
+            state.user = data.user;
+            showToast('Sesión iniciada correctamente', 'success');
+          }
+        }
+      } catch (err) {
+        state.authErrorMessage = err.message || 'Error al procesar la solicitud.';
+      } finally {
+        state.authSubmitLoading = false;
+        renderApp();
+        if (state.user) {
+          await fetchServicesFromCloud();
+          await fetchAppointmentsFromCloud();
+        }
+      }
+    }
+
+    // 14.4 LOGOUT: supabaseClient.auth.signOut()
+    function handleLogout() {
+      openConfirmModal(
+        'Cerrar Sesión',
+        '¿Estás seguro de que deseas cerrar tu sesión actual?',
+        async () => {
+          if (supabaseClient) {
+            await supabaseClient.auth.signOut();
+          }
+          state.user = null;
+          state.appointments = [];
+          state.clients = [];
+          showToast('Sesión cerrada correctamente', 'info');
+          renderApp();
+        },
+        'Cerrar Sesión',
+        'primary'
+      );
+    }
+
+    function setAuthMode(mode) {
+      state.authMode = mode;
+      state.authErrorMessage = null;
+      state.authSuccessMessage = null;
+      renderApp();
+    }
+
+    // ==========================================
+    // 15. MODAL DE CONFIRMACIÓN GENÉRICO
+    // ==========================================
+    function renderConfirmModal() {
+      if (!state.confirmModal.isOpen) return '';
+      const cm = state.confirmModal;
+      const isDanger = cm.confirmVariant === 'danger';
+
+      return `
+        <div class="fixed inset-0 z-80 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+          <div class="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 text-center border border-slate-200 space-y-4 animate-in fade-in duration-150">
+            <div class="w-12 h-12 rounded-2xl ${isDanger ? 'bg-rose-100 text-rose-600' : 'bg-blue-100 text-blue-600'} flex items-center justify-center mx-auto">
+              <i data-lucide="${isDanger ? 'alert-triangle' : 'help-circle'}" class="w-6 h-6"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-black text-slate-900">${cm.title}</h3>
+              <p class="text-xs text-slate-500 mt-1 leading-snug">${cm.message}</p>
+            </div>
+            <div class="flex items-center gap-2 pt-2">
+              <button 
+                onclick="closeConfirmModal()" 
+                class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button 
+                onclick="handleConfirmModalAction()" 
+                class="flex-1 py-2.5 ${isDanger ? 'bg-rose-600 hover:bg-rose-500' : 'bg-blue-600 hover:bg-blue-500'} text-white font-bold rounded-xl text-xs shadow-md transition-colors cursor-pointer"
+              >
+                ${cm.confirmText}
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ==========================================
+    // 16. RENDERIZADO GENERAL Y CONTROLADORES
+    // ==========================================
+    function renderApp() {
+      const appContainer = document.getElementById('app');
+      if (!appContainer) return;
+
+      if (!state.user) {
+        appContainer.innerHTML = renderAuthScreen();
+        if (window.lucide) window.lucide.createIcons();
+        return;
+      }
+
+      appContainer.innerHTML = `
+        <div class="min-h-screen bg-slate-100/70 text-slate-900 flex font-sans">
+          <!-- BARRA LATERAL IZQUIERDA (DESKTOP) -->
+          <aside class="hidden lg:block w-64 xl:w-72 shrink-0 h-screen sticky top-0 z-30 shadow-xl">
+            ${renderLeftSidebar()}
+          </aside>
+
+          <!-- DRAWER MÓVIL / TABLET -->
+          ${state.sidebarMobileOpen ? `
+            <div class="fixed inset-0 z-50 lg:hidden flex">
+              <div class="fixed inset-0 bg-slate-950/70 backdrop-blur-xs" onclick="toggleMobileSidebar()"></div>
+              <div class="relative w-72 max-w-[85vw] h-full z-10 shadow-2xl">
+                ${renderLeftSidebar()}
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- CONTENIDO PRINCIPAL (HEADER + ÁREA DE VISTA) -->
+          <div class="flex-1 flex flex-col min-w-0 min-h-screen">
+            <!-- ENCABEZADO SUPERIOR -->
+            ${renderTopHeader()}
+
+            <!-- Indicador sutil de sincronización -->
+            <div id="syncIndicator"></div>
+
+            <!-- Banner Flotante de Alerta 10 minutos -->
+            <div id="alertBannerContainer" class="fixed top-20 right-4 z-40 max-w-md w-full space-y-2 pointer-events-auto"></div>
+
+            <!-- Área de la Vista Activa -->
+            <main id="mainContentArea" class="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-6">
+              <!-- Renderizado dinámico -->
+            </main>
+          </div>
+        </div>
+
+        <!-- Modales -->
+        <div id="appointmentModalContainer">${renderAppointmentModal()}</div>
+        <div id="manageServicesModalContainer">${renderManageServicesModal()}</div>
+        <div id="alarmModalContainer">${renderAlarmModal()}</div>
+        <div id="confirmModalContainer">${renderConfirmModal()}</div>
+      `;
+
+      renderMainView();
+      renderAlertBanner();
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function renderSyncIndicator() {
+      const el = document.getElementById('syncIndicator');
+      if (!el) return;
+      el.innerHTML = state.syncing ? `
+        <div class="bg-blue-600 text-white text-[11px] font-semibold py-1 px-4 text-center flex items-center justify-center gap-1.5 shadow-xs">
+          <span>Sincronizando con Supabase (tablas 'recepcion' y 'servicios')...</span>
+        </div>
+      ` : '';
+    }
+
+    function switchTab(tabId) {
+      state.currentTab = tabId;
+      state.sidebarMobileOpen = false;
+      renderApp();
+    }
+
+    function applyFilter(filter) {
+      state.statusFilter = filter;
+      state.currentTab = 'appointments';
+      state.sidebarMobileOpen = false;
+      renderApp();
+    }
+
+    function handleSearch(q) {
+      state.searchQuery = q;
+      renderMainView();
+    }
+
+    function toggleMobileSidebar() {
+      state.sidebarMobileOpen = !state.sidebarMobileOpen;
+      renderApp();
+    }
+
+    function openAppointmentModal(appId = null, initialDate = null) {
+      if (appId) {
+        state.editingAppointment = state.appointments.find(a => a.id === appId) || null;
+      } else {
+        state.editingAppointment = initialDate ? {
+          clientName: '',
+          clientPhone: '',
+          clientEmail: '',
+          serviceName: state.services[0]?.name || 'Consulta Estándar',
+          serviceId: state.services[0]?.id || 'srv-1',
+          date: initialDate,
+          startTime: '10:00',
+          durationMinutes: 45,
+          price: 15000,
+          amountPaid: 0,
+          paymentMethod: 'Efectivo',
+          status: 'pendiente',
+          notes: ''
+        } : null;
+      }
+      state.isAppointmentModalOpen = true;
+      renderApp();
+    }
+
+    function closeAppointmentModal() {
+      state.isAppointmentModalOpen = false;
+      state.editingAppointment = null;
+      renderApp();
+    }
+
+    function openManageServicesModal() {
+      state.editingServiceId = null;
+      state.isManageServicesModalOpen = true;
+      renderApp();
+    }
+
+    function closeManageServicesModal() {
+      state.isManageServicesModalOpen = false;
+      state.editingServiceId = null;
+      renderApp();
+    }
+
+    function testAlarmChime() {
+      playAlarmChime();
+      showToast('Probando timbre de alarma de 5 minutos', 'info');
+    }
+
+    // ==========================================
+    // 17. INICIALIZACIÓN DE LA APLICACIÓN
+    // ==========================================
+    window.addEventListener('DOMContentLoaded', async () => {
+      // Detección de token de recuperación de contraseña en URL
+      if (window.location.hash && window.location.hash.includes('type=recovery')) {
+        state.isResetPasswordModalOpen = true;
+      }
+
+      // Escuchar sesión Supabase
+      if (supabaseClient) {
+        supabaseClient.auth.getSession().then(({ data: { session } }) => {
+          state.user = session?.user ?? null;
+          state.authLoading = false;
+          renderApp();
+
+          if (state.user) {
+            fetchServicesFromCloud();
+            fetchAppointmentsFromCloud();
+          }
+        });
+
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+          if (event === 'PASSWORD_RECOVERY') {
+            state.isResetPasswordModalOpen = true;
+          }
+
+          state.user = session?.user ?? null;
+          state.authLoading = false;
+          renderApp();
+
+          if (state.user) {
+            fetchServicesFromCloud();
+            fetchAppointmentsFromCloud();
+          }
+        });
+
+        // Suscripción Realtime a tabla 'recepcion'
+        supabaseClient
+          .channel('realtime_recepcion_channel')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'recepcion' }, () => {
+            fetchAppointmentsFromCloud();
+          })
+          .subscribe();
+
+        // Suscripción Realtime a tabla 'servicios'
+        supabaseClient
+          .channel('realtime_servicios_channel')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'servicios' }, () => {
+            fetchServicesFromCloud();
+          })
+          .subscribe();
+      } else {
+        state.authLoading = false;
+        renderApp();
+      }
+
+      // Iniciar el temporizador de alerta cada 30 segundos
+      startRealTimeAlarmTimer();
+    });
+  </script>
+</body>
 </html>
