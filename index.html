@@ -12,6 +12,32 @@
   <link rel="icon" type="image/png" href="https://i.postimg.cc/Yq5ZGfpz/Gemini-Generated-Image-9wbbqy9wbbqy9wbb-modified.png">
   <link rel="apple-touch-icon" href="https://i.postimg.cc/Yq5ZGfpz/Gemini-Generated-Image-9wbbqy9wbbqy9wbb-modified.png">
   
+  <!-- Aislamiento de errores de extensiones del navegador (ej. MetaMask / Web3 / extensiones ajenas) -->
+  <script>
+    (function() {
+      window.addEventListener('error', function(event) {
+        var fn = event.filename || '';
+        var msg = event.message || '';
+        if (fn.indexOf('chrome-extension://') !== -1 || fn.indexOf('moz-extension://') !== -1 ||
+            msg.indexOf('MetaMask') !== -1 || msg.indexOf('ethereum') !== -1 || msg.indexOf('Failed to connect') !== -1) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          return true;
+        }
+      }, true);
+
+      window.addEventListener('unhandledrejection', function(event) {
+        var reason = event.reason;
+        var msg = (reason && (reason.message || reason.stack || String(reason))) || '';
+        if (msg.indexOf('chrome-extension://') !== -1 || msg.indexOf('moz-extension://') !== -1 ||
+            msg.indexOf('MetaMask') !== -1 || msg.indexOf('ethereum') !== -1) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+        }
+      }, true);
+    })();
+  </script>
+
   <!-- Tipografías Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -79,7 +105,6 @@
     const SUPABASE_URL = "https://lbvnmbhodgjvuylcrwip.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxidm5tYmhvZGdqdnV5bGNyd2lwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE2Mjc1MjgsImV4cCI6MjEwNzIwMzUyOH0.b54ADnojztuRqihBET-WzILNj6-ke5Cdi-nm9qYCNDA";
 
-    // Inicializar cliente evitando colisiones con window.supabase del script CDN UMD
     let supabaseClient = null;
     try {
       if (window.supabase && typeof window.supabase.createClient === 'function') {
@@ -114,7 +139,7 @@
       forgotPasswordError: null,
       forgotPasswordSuccess: null,
 
-      // Modo de Recuperación de Contraseña Forzado (Obligatorio escribir nueva clave antes de acceder)
+      // Modo de Recuperación de Contraseña Forzado
       isPasswordRecoveryMode: false,
       isResetPasswordModalOpen: false,
       resetPasswordNew: '',
@@ -122,13 +147,15 @@
       resetPasswordLoading: false,
       resetPasswordError: null,
 
-      // Navegación y Filtros
+      // Navegación, Filtros y Calendario Semanal
       currentTab: 'dashboard', // 'dashboard' | 'calendar' | 'appointments' | 'clients' | 'services' | 'settings'
       statusFilter: 'all',     // 'all' | 'today' | 'pendiente' | 'confirmado' | 'cancelado'
       searchQuery: '',
       sidebarMobileOpen: false,
+      weekOffset: 0, // Desplazamiento en semanas (0 = semana actual, -1 = semana anterior, +1 = siguiente)
+      dashboardCalendarView: 'week', // 'week' | 'day'
 
-      // Datos sincronizados
+      // Datos sincronizados con Supabase
       appointments: [],
       services: [],
       clients: [],
@@ -167,7 +194,7 @@
       syncing: false
     };
 
-    // Servicios de respaldo
+    // Servicios de catálogo por defecto
     const DEFAULT_SERVICES = [
       { id: 'srv-1', name: 'Consulta / Asesoría Inicial', durationMinutes: 30, price: 10000, category: 'Consultas' },
       { id: 'srv-2', name: 'Atención Profesional Estándar', durationMinutes: 45, price: 16000, category: 'Servicios' },
@@ -177,14 +204,97 @@
     ];
 
     // ==========================================
-    // 3. UTILIDADES DE FECHA, MONEDA Y NOTIFICACIONES
+    // 3. UTILIDADES DE FECHA, CALENDARIO SEMANAL Y NOTIFICACIONES
     // ==========================================
+    const MONTH_NAMES_ES = [
+      'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+
+    const DAY_NAMES_ES = [
+      { short: 'Lun', full: 'Lunes' },
+      { short: 'Mar', full: 'Martes' },
+      { short: 'Mié', full: 'Miércoles' },
+      { short: 'Jue', full: 'Jueves' },
+      { short: 'Vie', full: 'Viernes' },
+      { short: 'Sáb', full: 'Sábado' },
+      { short: 'Dom', full: 'Domingo' }
+    ];
+
     function getTodayString() {
       const now = new Date();
       const yr = now.getFullYear();
       const mo = String(now.getMonth() + 1).padStart(2, '0');
       const da = String(now.getDate()).padStart(2, '0');
       return `${yr}-${mo}-${da}`;
+    }
+
+    // Calcula el Lunes de la semana para cualquier fecha dada
+    function getMondayOfDate(d) {
+      const date = new Date(d);
+      const day = date.getDay(); // 0 es Domingo, 1 es Lunes...
+      const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(date.setDate(diff));
+      monday.setHours(0, 0, 0, 0);
+      return monday;
+    }
+
+    // Genera el conjunto de 7 días de la semana (Lunes a Domingo) según el weekOffset
+    function getWeekInfo(offset = 0) {
+      const now = new Date();
+      const baseMonday = getMondayOfDate(now);
+      baseMonday.setDate(baseMonday.getDate() + (offset * 7));
+
+      const days = [];
+      for (let i = 0; i < 7; i++) {
+        const dayDate = new Date(baseMonday);
+        dayDate.setDate(baseMonday.getDate() + i);
+
+        const yr = dayDate.getFullYear();
+        const mo = String(dayDate.getMonth() + 1).padStart(2, '0');
+        const da = String(dayDate.getDate()).padStart(2, '0');
+        const dateStr = `${yr}-${mo}-${da}`;
+
+        days.push({
+          dateStr,
+          dayNumber: dayDate.getDate(),
+          monthNumber: dayDate.getMonth() + 1,
+          monthName: MONTH_NAMES_ES[dayDate.getMonth()],
+          year: dayDate.getFullYear(),
+          name: DAY_NAMES_ES[i].full,
+          shortName: DAY_NAMES_ES[i].short,
+          isToday: dateStr === getTodayString()
+        });
+      }
+
+      const startDay = days[0];
+      const endDay = days[6];
+      let rangeLabel = '';
+      if (startDay.monthNumber === endDay.monthNumber) {
+        rangeLabel = `${startDay.dayNumber} al ${endDay.dayNumber} de ${startDay.monthName} ${startDay.year}`;
+      } else if (startDay.year === endDay.year) {
+        rangeLabel = `${startDay.dayNumber} ${startDay.monthName.slice(0, 3)} - ${endDay.dayNumber} ${endDay.monthName.slice(0, 3)} ${startDay.year}`;
+      } else {
+        rangeLabel = `${startDay.dayNumber} ${startDay.monthName.slice(0, 3)} ${startDay.year} - ${endDay.dayNumber} ${endDay.monthName.slice(0, 3)} ${endDay.year}`;
+      }
+
+      return {
+        days,
+        rangeLabel,
+        isCurrentWeek: offset === 0,
+        startDate: startDay.dateStr,
+        endDate: endDay.dateStr
+      };
+    }
+
+    function changeWeek(delta) {
+      state.weekOffset += delta;
+      renderApp();
+    }
+
+    function goToCurrentWeek() {
+      state.weekOffset = 0;
+      renderApp();
     }
 
     function formatCurrencyARS(amount) {
@@ -753,18 +863,15 @@
           const appMinutes = timeToMinutes(app.startTime);
           const diff = appMinutes - currentMinutes;
 
-          // Alerta sonora y banner a 10 minutos o menos (0 <= diff <= 10)
           if (diff >= 0 && diff <= 10) {
             matchedAlerts.push({ appointment: app, minutesLeft: diff });
 
-            // Beep al ingresar al rango de 10 min
             if (!state.alertedBeepIds.has(app.id)) {
               playAlertBeep();
               state.alertedBeepIds.add(app.id);
             }
           }
 
-          // Alarma modal a los 5 minutos exactos
           if (diff <= 5 && diff >= 0 && !state.alarmTriggeredIds.has(app.id)) {
             state.alarmTriggeredIds.add(app.id);
             state.alarmAppointment = app;
@@ -846,7 +953,7 @@
           <div class="flex items-center gap-3 min-w-0">
             <button 
               onclick="toggleMobileSidebar()" 
-              class="lg:hidden p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+              class="lg:hidden p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
               title="Abrir menú de navegación"
             >
               <i data-lucide="menu" class="w-5 h-5"></i>
@@ -861,7 +968,7 @@
             </div>
           </div>
 
-          <!-- ESQUINA SUPERIOR DERECHA: ÚNICAMENTE BOTONES DE ACCIÓN PRINCIPALES -->
+          <!-- ESQUINA SUPERIOR DERECHA: BOTONES DE ACCIÓN PRINCIPALES -->
           <div class="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
             <!-- 1. Botón "Nuevo Turno" -->
             <button 
@@ -940,7 +1047,7 @@
 
       const navItems = [
         { id: 'dashboard', label: 'Inicio / Panel', icon: 'layout-dashboard' },
-        { id: 'calendar', label: 'Agenda', icon: 'calendar', badge: todayCount > 0 ? `${todayCount} hoy` : null },
+        { id: 'calendar', label: 'Agenda Semanal', icon: 'calendar', badge: todayCount > 0 ? `${todayCount} hoy` : null },
         { id: 'appointments', label: 'Lista de Turnos', icon: 'list-filter', badge: state.appointments.length },
         { id: 'clients', label: 'Clientes', icon: 'users', badge: state.clients.length },
         { id: 'services', label: 'Servicios', icon: 'briefcase', badge: state.services.length },
@@ -1066,7 +1173,214 @@
     }
 
     // ==========================================
-    // 10. VISTAS PRINCIPALES
+    // 10. COMPONENTE: CALENDARIO SEMANAL INTERACTIVO (WEEKLY CALENDAR GRID)
+    // ==========================================
+    function renderWeeklyCalendarGrid(containerTitle = 'Calendario Semanal de Turnos') {
+      const weekInfo = getWeekInfo(state.weekOffset);
+      const { days, rangeLabel, isCurrentWeek, startDate, endDate } = weekInfo;
+
+      // Filtrar turnos dentro del rango de la semana actual visualizada
+      const weekAppointments = state.appointments.filter(a => a.date >= startDate && a.date <= endDate);
+
+      return `
+        <div class="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden flex flex-col transition-all">
+          <!-- CABECERA DEL CALENDARIO: TÍTULO, RANGO Y CONTROLES DE NAVEGACIÓN -->
+          <div class="p-4 sm:p-5 border-b border-slate-200/80 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-gradient-to-r from-slate-50 via-white to-slate-50/50">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-blue-600/10 border border-blue-200 text-blue-600 flex items-center justify-center shrink-0">
+                <i data-lucide="calendar" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <h3 class="font-bold text-base sm:text-lg text-slate-900 tracking-tight">${containerTitle}</h3>
+                  <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${isCurrentWeek ? 'bg-blue-100 text-blue-800 border border-blue-200' : 'bg-slate-200 text-slate-700'}">
+                    ${isCurrentWeek ? 'Semana Actual' : 'Semana'}
+                  </span>
+                </div>
+                <p class="text-xs font-semibold text-slate-500 mt-0.5 flex items-center gap-1.5">
+                  <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-400"></i>
+                  <span>${rangeLabel}</span>
+                  <span class="text-slate-300">·</span>
+                  <span class="text-blue-600 font-bold">${weekAppointments.length} turnos agendados</span>
+                </p>
+              </div>
+            </div>
+
+            <!-- CONTROLES DE NAVEGACIÓN: SEMANA ANTERIOR, HOY, SEMANA SIGUIENTE -->
+            <div class="flex items-center gap-1.5 self-start md:self-center shrink-0">
+              <button 
+                onclick="changeWeek(-1)"
+                class="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-300 shadow-2xs transition-all cursor-pointer"
+                title="Ver semana anterior"
+              >
+                <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                <span class="hidden sm:inline">Anterior</span>
+              </button>
+
+              <button 
+                onclick="goToCurrentWeek()"
+                class="px-3.5 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer ${
+                  isCurrentWeek 
+                    ? 'bg-blue-600 text-white hover:bg-blue-500 active:bg-blue-700' 
+                    : 'bg-white text-slate-800 hover:bg-slate-100 border border-slate-300'
+                }"
+                title="Volver a la semana actual"
+              >
+                Hoy
+              </button>
+
+              <button 
+                onclick="changeWeek(1)"
+                class="flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 active:bg-slate-200 border border-slate-300 shadow-2xs transition-all cursor-pointer"
+                title="Ver semana siguiente"
+              >
+                <span class="hidden sm:inline">Siguiente</span>
+                <i data-lucide="chevron-right" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- GRILLA SEMANAL DE 7 COLUMNAS (LUNES A DOMINGO) -->
+          <div class="overflow-x-auto">
+            <div class="min-w-[840px] grid grid-cols-7 divide-x divide-slate-200/90 bg-slate-50/40">
+              ${days.map(day => {
+                // Obtener turnos de este día ordenados por hora de inicio
+                const dayApps = state.appointments
+                  .filter(a => a.date === day.dateStr)
+                  .sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+
+                return `
+                  <div class="flex flex-col min-h-[500px] bg-white/70 hover:bg-white transition-colors">
+                    <!-- ENCABEZADO DE LA COLUMNA DEL DÍA -->
+                    <div class="p-3 border-b border-slate-200 sticky top-0 z-10 transition-colors ${
+                      day.isToday ? 'bg-blue-50/90 border-b-blue-200 shadow-2xs' : 'bg-slate-50/90'
+                    }">
+                      <div class="flex items-center justify-between gap-1">
+                        <div>
+                          <p class="text-[10px] font-extrabold uppercase tracking-wider ${day.isToday ? 'text-blue-700' : 'text-slate-500'}">
+                            ${day.name}
+                          </p>
+                          <div class="flex items-center gap-1.5 mt-0.5">
+                            <span class="text-base font-black ${day.isToday ? 'text-blue-900' : 'text-slate-900'}">
+                              ${day.dayNumber}
+                            </span>
+                            ${day.isToday ? `
+                              <span class="px-1.5 py-0.2 rounded-md bg-blue-600 text-white font-extrabold text-[9px] uppercase tracking-wider animate-pulse">
+                                Hoy
+                              </span>
+                            ` : ''}
+                          </div>
+                        </div>
+
+                        <!-- Botón Rápido + Turno para este día -->
+                        <button 
+                          onclick="openAppointmentModal(null, '${day.dateStr}')" 
+                          class="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-100 transition-colors cursor-pointer"
+                          title="Agendar turno para el ${day.name} ${day.dayNumber}"
+                        >
+                          <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                        </button>
+                      </div>
+
+                      <div class="mt-1 flex items-center justify-between text-[10px]">
+                        <span class="text-slate-400 font-medium">Turnos:</span>
+                        <span class="font-bold font-mono px-1.5 py-0.2 rounded ${
+                          dayApps.length > 0 
+                            ? (day.isToday ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700')
+                            : 'bg-transparent text-slate-400'
+                        }">
+                          ${dayApps.length}
+                        </span>
+                      </div>
+                    </div>
+
+                    <!-- CUERPO DE LA COLUMNA: LISTADO DE CARDS DE TURNOS -->
+                    <div class="p-2 space-y-2 flex-1 overflow-y-auto max-h-[580px]">
+                      ${dayApps.length === 0 ? `
+                        <div 
+                          onclick="openAppointmentModal(null, '${day.dateStr}')" 
+                          class="h-28 rounded-xl border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50/30 flex flex-col items-center justify-center text-slate-400 hover:text-blue-600 text-[11px] font-semibold transition-all cursor-pointer p-2 text-center group"
+                          title="Clic para agregar turno este día"
+                        >
+                          <i data-lucide="plus" class="w-4 h-4 text-slate-300 group-hover:text-blue-500 mb-1 transition-colors"></i>
+                          <span>Sin turnos</span>
+                          <span class="text-[9px] text-slate-400 group-hover:text-blue-500">+ Agendar</span>
+                        </div>
+                      ` : dayApps.map(app => {
+                        const statusColors = {
+                          confirmado: 'border-l-4 border-l-emerald-500 bg-emerald-50/50 hover:bg-emerald-50 text-emerald-900 border-emerald-200',
+                          pendiente: 'border-l-4 border-l-amber-500 bg-amber-50/50 hover:bg-amber-50 text-amber-900 border-amber-200',
+                          cancelado: 'border-l-4 border-l-rose-500 bg-rose-50/50 hover:bg-rose-50 text-rose-900 border-rose-200 opacity-75',
+                          completado: 'border-l-4 border-l-blue-500 bg-blue-50/50 hover:bg-blue-50 text-blue-900 border-blue-200',
+                          ausente: 'border-l-4 border-l-slate-400 bg-slate-100 hover:bg-slate-200/70 text-slate-800 border-slate-300'
+                        };
+
+                        const currentBadgeColor = {
+                          confirmado: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+                          pendiente: 'bg-amber-100 text-amber-800 border-amber-300',
+                          cancelado: 'bg-rose-100 text-rose-800 border-rose-300',
+                          completado: 'bg-blue-100 text-blue-800 border-blue-300',
+                          ausente: 'bg-slate-200 text-slate-800 border-slate-300'
+                        }[app.status] || 'bg-slate-100 text-slate-700';
+
+                        return `
+                          <div 
+                            onclick="openAppointmentModal('${app.id}')"
+                            class="p-2.5 rounded-xl border border-slate-200/90 shadow-2xs hover:shadow-md transition-all cursor-pointer group relative bg-white ${statusColors[app.status] || 'border-l-4 border-l-blue-500'}"
+                          >
+                            <!-- Hora y Estado -->
+                            <div class="flex items-center justify-between gap-1 mb-1">
+                              <span class="text-[10px] font-mono font-bold text-slate-800 bg-white/90 px-1.5 py-0.5 rounded border border-slate-200 shadow-2xs">
+                                ${app.startTime} - ${app.endTime}
+                              </span>
+                              <span class="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded border ${currentBadgeColor}">
+                                ${app.status}
+                              </span>
+                            </div>
+
+                            <!-- Cliente -->
+                            <h4 class="font-extrabold text-xs text-slate-900 truncate group-hover:text-blue-600 transition-colors">
+                              ${app.clientName}
+                            </h4>
+
+                            <!-- Servicio -->
+                            <p class="text-[11px] text-slate-600 font-medium truncate mt-0.5">
+                              ${app.serviceName}
+                            </p>
+
+                            <!-- Footer Card: Precio y WhatsApp -->
+                            <div class="mt-2 pt-1.5 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                              <span class="font-mono font-bold text-slate-700">
+                                ${formatCurrencyARS(app.price)}
+                              </span>
+
+                              ${app.clientPhone ? `
+                                <a 
+                                  href="https://wa.me/${normalizeArgentinePhone(app.clientPhone)}?text=${encodeURIComponent(`Hola ${app.clientName}! Te contactamos de ${state.settings.businessName} por tu turno del ${app.date} a las ${app.startTime}hs.`)}"
+                                  target="_blank"
+                                  onclick="event.stopPropagation()"
+                                  class="p-1 rounded-md text-emerald-700 bg-emerald-100/80 hover:bg-emerald-200 transition-colors"
+                                  title="Enviar WhatsApp al cliente"
+                                >
+                                  <i data-lucide="message-square" class="w-3 h-3"></i>
+                                </a>
+                              ` : ''}
+                            </div>
+                          </div>
+                        `;
+                      }).join('')}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // ==========================================
+    // 11. VISTAS PRINCIPALES DEL PANEL
     // ==========================================
     function renderMainView() {
       const container = document.getElementById('mainContentArea');
@@ -1100,7 +1414,7 @@
       }
     }
 
-    // 10.1 DASHBOARD
+    // 11.1 DASHBOARD: KPIS + CALENDARIO SEMANAL VISUAL + LISTA DEL DÍA
     function renderDashboardView() {
       const today = getTodayString();
       const todayApps = state.appointments.filter(a => a.date === today);
@@ -1119,6 +1433,7 @@
 
       return `
         <div class="space-y-6">
+          <!-- 1. Tarjetas KPI / Métricas Globales -->
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
               <div class="flex items-center justify-between text-slate-500 mb-2">
@@ -1157,13 +1472,17 @@
             </div>
           </div>
 
-          <div class="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <!-- 2. COMPONENTE PRINCIPAL: CALENDARIO SEMANAL VISUAL INTERACTIVO -->
+          ${renderWeeklyCalendarGrid('Agenda Semanal del Estudio')}
+
+          <!-- 3. Listado Rápido de Turnos del Día de Hoy -->
+          <div class="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div>
-                <h3 class="font-bold text-base text-slate-900">Agenda para Hoy (${today})</h3>
-                <p class="text-xs text-slate-500">Listado cronológico de turnos del día</p>
+                <h3 class="font-bold text-base text-slate-900">Turnos Programados para Hoy (${today})</h3>
+                <p class="text-xs text-slate-500">Acceso rápido con estados y contacto directo por WhatsApp</p>
               </div>
-              <button onclick="openAppointmentModal(null, '${today}')" class="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold transition-colors cursor-pointer">
+              <button onclick="openAppointmentModal(null, '${today}')" class="px-3.5 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-xl text-xs font-bold transition-colors cursor-pointer">
                 + Agregar turno hoy
               </button>
             </div>
@@ -1171,7 +1490,7 @@
             <div class="divide-y divide-slate-100">
               ${todayApps.length === 0 ? `
                 <div class="p-8 text-center text-slate-400 text-xs">
-                  No hay turnos agendados para el día de hoy. ¡Hacé clic en "Nuevo Turno" para registrar uno!
+                  No hay turnos registrados para el día de hoy. Puedes agregar uno usando el botón "+ Nuevo Turno" o haciendo clic en cualquier día del calendario semanal.
                 </div>
               ` : todayApps.map(app => `
                 <div class="p-4 sm:px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/80 transition-colors">
@@ -1194,6 +1513,7 @@
                     <span class="text-[11px] font-bold px-2 py-0.5 rounded-full capitalize ${
                       app.status === 'confirmado' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
                       app.status === 'pendiente' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                      app.status === 'cancelado' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
                       'bg-slate-100 text-slate-700'
                     }">${app.status}</span>
 
@@ -1220,7 +1540,16 @@
       `;
     }
 
-    // 10.2 LISTA DE TURNOS
+    // 11.2 AGENDA / CALENDARIO (VISTA SEMANAL COMPLETA)
+    function renderCalendarView() {
+      return `
+        <div class="space-y-6">
+          ${renderWeeklyCalendarGrid('Agenda Semanal Completa')}
+        </div>
+      `;
+    }
+
+    // 11.3 LISTA DE TURNOS (TABLA COMPLETA CON FILTROS Y ACCIONES)
     function renderAppointmentsView() {
       let filtered = [...state.appointments];
       const today = getTodayString();
@@ -1351,52 +1680,7 @@
       `;
     }
 
-    // 10.3 AGENDA / CALENDARIO
-    function renderCalendarView() {
-      const today = getTodayString();
-      const todayApps = state.appointments.filter(a => a.date === today);
-
-      return `
-        <div class="space-y-4">
-          <div class="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
-            <div>
-              <h3 class="font-bold text-base text-slate-900">Agenda Diaria y Bloques Horarios</h3>
-              <p class="text-xs text-slate-500">Visualización de franjas horarias y disponibilidad</p>
-            </div>
-            <button onclick="openAppointmentModal(null, '${today}')" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-xs cursor-pointer">
-              + Nuevo Turno
-            </button>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            ${todayApps.length === 0 ? `
-              <div class="col-span-full p-12 text-center bg-white rounded-2xl border border-slate-200 text-slate-400 text-xs">
-                No hay turnos registrados para hoy. ¡Hacé clic en "Nuevo Turno" para agendar!
-              </div>
-            ` : todayApps.map(app => `
-              <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs space-y-2 hover:border-blue-300 transition-colors">
-                <div class="flex items-center justify-between">
-                  <span class="text-xs font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-                    ${app.startTime} - ${app.endTime} hs
-                  </span>
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${
-                    app.status === 'confirmado' ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-800'
-                  }">${app.status}</span>
-                </div>
-                <h4 class="font-bold text-sm text-slate-900">${app.clientName}</h4>
-                <p class="text-xs text-slate-500">${app.serviceName} (${app.durationMinutes} min)</p>
-                <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                  <span class="font-mono font-bold text-slate-800">${formatCurrencyARS(app.price)}</span>
-                  <button onclick="openAppointmentModal('${app.id}')" class="text-blue-600 hover:underline text-[11px] font-semibold cursor-pointer">Editar Turno</button>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `;
-    }
-
-    // 10.4 CLIENTES
+    // 11.4 CLIENTES
     function renderClientsView() {
       return `
         <div class="space-y-4">
@@ -1441,7 +1725,7 @@
       `;
     }
 
-    // 10.5 CATÁLOGO DE SERVICIOS
+    // 11.5 CATÁLOGO DE SERVICIOS
     function renderServicesCatalogView() {
       return `
         <div class="space-y-4">
@@ -1483,7 +1767,7 @@
       `;
     }
 
-    // 10.6 CONFIGURACIÓN
+    // 11.6 CONFIGURACIÓN
     function renderSettingsView() {
       return `
         <div class="max-w-2xl bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs space-y-5">
@@ -1528,7 +1812,7 @@
     }
 
     // ==========================================
-    // 11. MODAL "NUEVO TURNO"
+    // 12. MODAL "NUEVO TURNO"
     // ==========================================
     function renderAppointmentModal() {
       if (!state.isAppointmentModalOpen) return '';
@@ -1739,7 +2023,7 @@
     }
 
     // ==========================================
-    // 12. MODAL "MANAGE SERVICES"
+    // 13. MODAL "MANAGE SERVICES"
     // ==========================================
     function renderManageServicesModal() {
       if (!state.isManageServicesModalOpen) return '';
@@ -1905,7 +2189,7 @@
     }
 
     // ==========================================
-    // 13. ALERTA FLOTANTE Y MODAL DE 10 / 5 MINUTOS
+    // 14. ALERTA FLOTANTE Y MODAL DE 10 / 5 MINUTOS
     // ==========================================
     function renderAlertBanner() {
       const container = document.getElementById('alertBannerContainer');
@@ -1978,7 +2262,7 @@
     }
 
     // ==========================================
-    // 14. PANTALLA DE AUTENTICACIÓN (LOGIN, SIGNUP Y RECUPERACIÓN REAL DE CONTRASEÑA)
+    // 15. PANTALLA DE AUTENTICACIÓN
     // ==========================================
     function renderAuthScreen() {
       return `
@@ -2019,7 +2303,6 @@
 
             <!-- Formulario de Auth -->
             <form onsubmit="handleAuthSubmit(event)" class="p-6 sm:p-7 space-y-4">
-              <!-- Mensaje de Error -->
               ${state.authErrorMessage ? `
                 <div class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5">
                   <i data-lucide="alert-circle" class="w-4 h-4 text-rose-600 shrink-0 mt-0.5"></i>
@@ -2027,7 +2310,6 @@
                 </div>
               ` : ''}
 
-              <!-- Mensaje Informativo de Éxito -->
               ${state.authSuccessMessage ? `
                 <div class="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-start gap-2.5">
                   <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5"></i>
@@ -2087,20 +2369,18 @@
           </div>
           <p class="mt-6 text-xs text-slate-500 text-center">Conectado con Supabase (tablas <code>recepcion</code> y <code>servicios</code>)</p>
 
-          <!-- MODAL DE SOLICITUD DE ENLACE DE RECUPERACIÓN -->
           ${renderForgotPasswordModal()}
         </div>
       `;
     }
 
-    // 14.1 MODAL "¿OLVIDASTE TU CONTRASEÑA?" (SOLICITA EL CORREO)
+    // 15.1 MODAL "¿OLVIDASTE TU CONTRASEÑA?"
     function renderForgotPasswordModal() {
       if (!state.isForgotPasswordModalOpen) return '';
 
       return `
         <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
           <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
-            <!-- Header -->
             <div class="bg-slate-900 px-6 py-5 flex items-center justify-between text-white shrink-0">
               <div class="flex items-center gap-2.5">
                 <div class="w-8 h-8 rounded-lg bg-blue-600/30 border border-blue-400 flex items-center justify-center text-blue-300">
@@ -2116,7 +2396,6 @@
               </button>
             </div>
 
-            <!-- Contenido del Formulario -->
             <form onsubmit="handleForgotPasswordSubmit(event)" class="p-6 space-y-4 text-xs">
               <p class="text-slate-600 leading-relaxed">
                 Ingresá tu correo electrónico registrado. Te enviaremos un enlace oficial de Supabase Auth para restablecer tu contraseña de forma segura.
@@ -2253,17 +2532,14 @@
     }
 
     // ==========================================
-    // 14.2 MODAL OBLIGATORIO: "ESTABLECER NUEVA CONTRASEÑA"
+    // 15.2 MODAL OBLIGATORIO: "ESTABLECER NUEVA CONTRASEÑA"
     // ==========================================
-    // El usuario DEBE ingresar su nueva contraseña y confirmarla antes de poder acceder a la app.
-    // El dashboard y el login screen permanecen ocultos mientras este modal esté activo.
     function renderResetPasswordModal() {
       const isHidden = !state.isPasswordRecoveryMode && !state.isResetPasswordModalOpen;
 
       return `
         <div id="reset-password-modal" class="${isHidden ? 'hidden' : 'fixed inset-0 z-90 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200'}">
           <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden flex flex-col">
-            <!-- Header -->
             <div class="bg-slate-900 px-6 py-6 text-white text-center">
               <div class="w-14 h-14 rounded-2xl bg-blue-600/20 border border-blue-500/40 flex items-center justify-center mx-auto mb-3 text-blue-400">
                 <i data-lucide="lock" class="w-7 h-7"></i>
@@ -2274,7 +2550,6 @@
               </p>
             </div>
 
-            <!-- Formulario -->
             <form onsubmit="handleUpdatePasswordSubmit(event)" class="p-6 sm:p-7 space-y-4 text-xs">
               ${state.resetPasswordError ? `
                 <div class="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
@@ -2342,7 +2617,6 @@
       `;
     }
 
-    // Cancelar recuperación y desloguear sesión temporal
     async function cancelPasswordRecoveryFlow() {
       if (supabaseClient) {
         await supabaseClient.auth.signOut();
@@ -2358,7 +2632,6 @@
       renderApp();
     }
 
-    // Envío del formulario de nueva contraseña
     async function handleUpdatePasswordSubmit(e) {
       e.preventDefault();
       const passInput = document.getElementById('newPasswordInput');
@@ -2385,19 +2658,16 @@
       try {
         if (!supabaseClient) throw new Error('Cliente Supabase no disponible.');
 
-        // Actualización oficial de contraseña con Supabase Auth
         const { data, error } = await supabaseClient.auth.updateUser({
           password: newPasswordValue
         });
 
         if (error) throw error;
 
-        // Éxito: Notificar, cerrar sesión temporal de recuperación y redirigir al login
         showToast('Contraseña actualizada correctamente', 'success');
 
         await supabaseClient.auth.signOut();
 
-        // Limpiar URL hash y banderas de recuperación
         state.isPasswordRecoveryMode = false;
         state.isResetPasswordModalOpen = false;
         state.user = null;
@@ -2422,7 +2692,7 @@
       }
     }
 
-    // 14.3 LOGIN & SIGNUP (SUBMIT)
+    // 15.3 LOGIN & SIGNUP (SUBMIT)
     async function handleAuthSubmit(e) {
       e.preventDefault();
       state.authErrorMessage = null;
@@ -2446,7 +2716,6 @@
         }
 
         if (state.authMode === 'signup') {
-          // Registro con supabaseClient.auth.signUp()
           const { data, error } = await supabaseClient.auth.signUp({ email, password });
           if (error) throw error;
 
@@ -2459,7 +2728,6 @@
             showToast('Cuenta creada con éxito', 'success');
           }
         } else {
-          // Inicio de sesión con supabaseClient.auth.signInWithPassword()
           const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
           if (error) {
             if (error.message.includes('Invalid login credentials')) {
@@ -2484,7 +2752,7 @@
       }
     }
 
-    // 14.4 LOGOUT: supabaseClient.auth.signOut()
+    // 15.4 LOGOUT
     function handleLogout() {
       openConfirmModal(
         'Cerrar Sesión',
@@ -2512,7 +2780,7 @@
     }
 
     // ==========================================
-    // 15. MODAL DE CONFIRMACIÓN GENÉRICO
+    // 16. MODAL DE CONFIRMACIÓN GENÉRICO
     // ==========================================
     function renderConfirmModal() {
       if (!state.confirmModal.isOpen) return '';
@@ -2549,14 +2817,12 @@
     }
 
     // ==========================================
-    // 16. RENDERIZADO GENERAL Y CONTROLADORES
+    // 17. RENDERIZADO GENERAL Y CONTROLADORES
     // ==========================================
     function renderApp() {
       const appContainer = document.getElementById('app');
       if (!appContainer) return;
 
-      // SI ESTÁ EN MODO DE RECUPERACIÓN DE CONTRASEÑA:
-      // Mantener dashboard y login screen ocultos y mostrar ÚNICAMENTE el modal "Establecer Nueva Contraseña"
       if (state.isPasswordRecoveryMode) {
         appContainer.innerHTML = `
           <div class="min-h-screen bg-slate-900 flex items-center justify-center relative overflow-hidden">
@@ -2569,7 +2835,6 @@
         return;
       }
 
-      // SI NO HAY USUARIO AUTENTICADO:
       if (!state.user) {
         appContainer.innerHTML = `
           ${renderAuthScreen()}
@@ -2580,7 +2845,6 @@
         return;
       }
 
-      // SI HAY USUARIO AUTENTICADO NORMALMENTE (DASHBOARD):
       appContainer.innerHTML = `
         <div id="login-screen" class="hidden"></div>
         <div id="app-dashboard" class="min-h-screen bg-slate-100/70 text-slate-900 flex font-sans">
@@ -2604,7 +2868,7 @@
             <!-- ENCABEZADO SUPERIOR -->
             ${renderTopHeader()}
 
-            <!-- Indicador sutil de sincronización -->
+            <!-- Indicador de sincronización -->
             <div id="syncIndicator"></div>
 
             <!-- Banner Flotante de Alerta 10 minutos -->
@@ -2711,7 +2975,7 @@
     }
 
     // ==========================================
-    // 17. INICIALIZACIÓN DE LA APLICACIÓN & AUTH LISTENERS
+    // 18. INICIALIZACIÓN DE LA APLICACIÓN & AUTH LISTENERS
     // ==========================================
     window.addEventListener('DOMContentLoaded', async () => {
       // Detección inicial de token de recuperación de contraseña en el hash de la URL
@@ -2720,13 +2984,10 @@
         state.isResetPasswordModalOpen = true;
       }
 
-      // Escuchar sesión y cambios de autenticación de Supabase
       if (supabaseClient) {
         // 1. AUTH STATE LISTENER FOR PASSWORD RECOVERY
         supabaseClient.auth.onAuthStateChange(async (event, session) => {
           if (event === 'PASSWORD_RECOVERY') {
-            // No redirigir al dashboard: mostrar modal de cambio de contraseña inmediatamente
-            // y mantener el dashboard y el login ocultos
             state.isPasswordRecoveryMode = true;
             state.isResetPasswordModalOpen = true;
             state.authLoading = false;
@@ -2742,7 +3003,6 @@
             return;
           }
 
-          // Si el usuario está en proceso de recuperación, no permitir auto-login al dashboard
           if (state.isPasswordRecoveryMode) {
             return;
           }
