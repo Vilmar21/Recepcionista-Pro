@@ -1,0 +1,8 @@
+{
+  "name": "Remix Recepcionista Pro",
+  "description": "Gestión integral de turnos, clientes, servicios, pagos y mensajes de WhatsApp para profesionales y pequeños negocios en Argentina sin costo mensual.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
