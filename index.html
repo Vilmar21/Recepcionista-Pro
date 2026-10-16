@@ -1318,6 +1318,8 @@
     // ==========================================
     // 9. BARRA LATERAL IZQUIERDA (LEFT SIDEBAR)
     // ==========================================
+    // 9. BARRA LATERAL IZQUIERDA (LEFT SIDEBAR EN GAMA DE AZULES)
+    // ==========================================
     function renderLeftSidebar() {
       const todayStr = getTodayString();
       const todayCount = state.appointments.filter(a => a.date === todayStr && a.status !== 'cancelado').length;
@@ -1341,17 +1343,17 @@
             onclick="switchTab('${item.id}')"
             class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all group cursor-pointer ${
               isActive 
-                ? 'bg-blue-600 text-white shadow-xs font-bold' 
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                ? 'bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 text-white shadow-md shadow-blue-950/60 font-bold border border-blue-300/30' 
+                : 'text-blue-100/90 hover:text-white hover:bg-blue-800/40 border border-transparent'
             }"
           >
             <div class="flex items-center gap-2.5 min-w-0">
-              <i data-lucide="${item.icon}" class="w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-slate-400 group-hover:text-blue-400'}"></i>
+              <i data-lucide="${item.icon}" class="w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-blue-300 group-hover:text-cyan-300 transition-colors'}"></i>
               <span class="truncate">${item.label}</span>
             </div>
             ${item.badge !== null && item.badge !== undefined ? `
               <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                isActive ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-300 border border-slate-700'
+                isActive ? 'bg-white/25 text-white' : 'bg-blue-950/80 text-blue-200 border border-blue-800/60'
               }">
                 ${item.badge}
               </span>
@@ -1361,55 +1363,58 @@
       }).join('');
 
       return `
-        <div class="flex flex-col h-full bg-slate-900 text-slate-100 border-r border-slate-800 select-none">
+        <div class="flex flex-col h-full bg-gradient-to-b from-[#091b36] via-[#0d274c] to-[#07162c] text-blue-50 border-r border-blue-900/50 shadow-xl select-none relative overflow-hidden">
+          <!-- Brillo ambiental sutil en la cabecera del menú -->
+          <div class="absolute -top-12 -left-12 w-40 h-40 rounded-full bg-blue-500/15 blur-2xl pointer-events-none"></div>
+
           <!-- Header de Marca -->
-          <div class="p-4 sm:p-5 border-b border-slate-800/80 shrink-0">
+          <div class="p-4 sm:p-5 border-b border-blue-800/40 bg-blue-950/40 shrink-0 relative z-10">
             <div class="flex items-center justify-between gap-3">
               <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-slate-800 p-1 border border-slate-700 shadow-md flex items-center justify-center overflow-hidden shrink-0">
+                <div class="w-10 h-10 rounded-xl bg-blue-900/60 p-1 border border-blue-700/60 shadow-md shadow-blue-950/50 flex items-center justify-center overflow-hidden shrink-0">
                   <img src="https://i.postimg.cc/Yq5ZGfpz/Gemini-Generated-Image-9wbbqy9wbbqy9wbb-modified.png" alt="Logo" class="w-full h-full object-contain">
                 </div>
                 <div class="min-w-0">
                   <div class="flex items-center gap-1.5">
                     <span class="font-extrabold text-sm tracking-tight text-white">Recepcionista Pro</span>
-                    <span class="text-[9px] uppercase font-bold tracking-wider text-blue-400 bg-blue-950/80 px-1.5 py-0.2 rounded border border-blue-800/80">ARG</span>
+                    <span class="text-[9px] uppercase font-bold tracking-wider text-cyan-300 bg-cyan-950/80 px-1.5 py-0.2 rounded border border-cyan-800/70">ARG</span>
                   </div>
-                  <p class="text-xs text-slate-400 truncate max-w-[160px]">${state.settings.businessName}</p>
+                  <p class="text-xs text-blue-300/80 truncate max-w-[160px]">${state.settings.businessName}</p>
                 </div>
               </div>
 
               <!-- Cerrar en móvil -->
-              <button onclick="toggleMobileSidebar()" class="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 cursor-pointer">
+              <button onclick="toggleMobileSidebar()" class="lg:hidden p-1.5 rounded-lg text-blue-300 hover:text-white hover:bg-blue-800/50 cursor-pointer">
                 <i data-lucide="x" class="w-5 h-5"></i>
               </button>
             </div>
           </div>
 
           <!-- Navegación & Filtros -->
-          <div class="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+          <div class="flex-1 overflow-y-auto px-3 py-4 space-y-6 relative z-10">
             <!-- Menú Principal -->
             <div class="space-y-1">
-              <div class="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              <div class="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-blue-300/70">
                 Navegación Principal
               </div>
               ${navHtml}
             </div>
 
             <!-- Filtros Rápidos de la Barra Lateral -->
-            <div class="space-y-1.5 pt-3 border-t border-slate-800/80">
-              <div class="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            <div class="space-y-1.5 pt-3 border-t border-blue-800/50">
+              <div class="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-blue-300/70">
                 Filtros de Turnos
               </div>
 
-              <button onclick="applyFilter('today')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors text-left cursor-pointer ${state.statusFilter === 'today' ? 'bg-blue-900/50 text-blue-300 font-bold' : ''}">
+              <button onclick="applyFilter('today')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-blue-100 hover:text-white hover:bg-blue-900/40 transition-colors text-left cursor-pointer ${state.statusFilter === 'today' ? 'bg-blue-800/60 text-cyan-200 font-bold border border-blue-600/50' : 'border border-transparent'}">
                 <div class="flex items-center gap-2">
-                  <i data-lucide="clock" class="w-3.5 h-3.5 text-blue-400"></i>
+                  <i data-lucide="clock" class="w-3.5 h-3.5 text-cyan-400"></i>
                   <span>Turnos de Hoy</span>
                 </div>
-                <span class="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded bg-blue-950 border border-blue-800 text-blue-300">${todayCount}</span>
+                <span class="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded bg-blue-950 border border-blue-700 text-cyan-300">${todayCount}</span>
               </button>
 
-              <button onclick="applyFilter('pendiente')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors text-left cursor-pointer ${state.statusFilter === 'pendiente' ? 'bg-amber-950/50 text-amber-300 font-bold' : ''}">
+              <button onclick="applyFilter('pendiente')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-blue-100 hover:text-white hover:bg-blue-900/40 transition-colors text-left cursor-pointer ${state.statusFilter === 'pendiente' ? 'bg-amber-950/60 text-amber-200 font-bold border border-amber-800/60' : 'border border-transparent'}">
                 <div class="flex items-center gap-2">
                   <i data-lucide="alert-circle" class="w-3.5 h-3.5 text-amber-400"></i>
                   <span>Pendientes</span>
@@ -1417,16 +1422,16 @@
                 <span class="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-950 border border-amber-800 text-amber-400">${pendingCount}</span>
               </button>
 
-              <button onclick="applyFilter('confirmado')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors text-left cursor-pointer ${state.statusFilter === 'confirmado' ? 'bg-emerald-950/50 text-emerald-300 font-bold' : ''}">
+              <button onclick="applyFilter('confirmado')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-blue-100 hover:text-white hover:bg-blue-900/40 transition-colors text-left cursor-pointer ${state.statusFilter === 'confirmado' ? 'bg-emerald-950/60 text-emerald-200 font-bold border border-emerald-800/60' : 'border border-transparent'}">
                 <div class="flex items-center gap-2">
                   <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400"></i>
                   <span>Confirmados</span>
                 </div>
-                <span class="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">${confirmedCount}</span>
+                <span class="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded bg-blue-950 border border-blue-800 text-emerald-300">${confirmedCount}</span>
               </button>
 
               ${cancelledCount > 0 ? `
-                <button onclick="applyFilter('cancelado')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors text-left cursor-pointer ${state.statusFilter === 'cancelado' ? 'bg-rose-950/50 text-rose-300 font-bold' : ''}">
+                <button onclick="applyFilter('cancelado')" class="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-blue-100 hover:text-white hover:bg-blue-900/40 transition-colors text-left cursor-pointer ${state.statusFilter === 'cancelado' ? 'bg-rose-950/60 text-rose-200 font-bold border border-rose-800/60' : 'border border-transparent'}">
                   <div class="flex items-center gap-2">
                     <i data-lucide="x-circle" class="w-3.5 h-3.5 text-rose-400"></i>
                     <span>Cancelados</span>
@@ -1438,15 +1443,15 @@
           </div>
 
           <!-- Footer de la Barra Lateral -->
-          <div class="p-3.5 border-t border-slate-800/80 bg-slate-950/40 shrink-0 space-y-1.5">
+          <div class="p-3.5 border-t border-blue-800/40 bg-blue-950/70 shrink-0 space-y-1.5 relative z-10">
             <div class="flex items-center justify-between text-[11px]">
-              <div class="flex items-center gap-1.5 text-emerald-400">
+              <div class="flex items-center gap-1.5 text-emerald-300">
                 <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                 <span class="font-semibold">Supabase Cloud</span>
               </div>
-              <span class="text-slate-500 font-mono text-[10px]">recepcion</span>
+              <span class="text-cyan-300/80 font-mono text-[10px]">recepcion</span>
             </div>
-            <p class="text-[11px] text-slate-400 truncate">${state.settings.ownerName}</p>
+            <p class="text-[11px] text-blue-300/80 truncate">${state.settings.ownerName}</p>
           </div>
         </div>
       `;
@@ -2542,29 +2547,44 @@
     }
 
     // ==========================================
-    // 15. PANTALLA DE AUTENTICACIÓN
+    // 15. PANTALLA DE AUTENTICACIÓN (FONDO EN GAMA DE AZULES INNOVADORA)
     // ==========================================
     function renderAuthScreen() {
       return `
-        <div id="login-screen" class="min-h-screen bg-slate-100 flex flex-col justify-center items-center px-4 py-8 relative ${state.isPasswordRecoveryMode ? 'hidden' : ''}">
-          <div class="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-200/80 overflow-hidden">
-            <!-- Cabecera -->
-            <div class="bg-slate-900 text-white p-7 text-center">
-              <div class="w-16 h-16 rounded-2xl bg-slate-800 p-1 mx-auto shadow-lg mb-3 flex items-center justify-center">
-                <img src="https://i.postimg.cc/Yq5ZGfpz/Gemini-Generated-Image-9wbbqy9wbbqy9wbb-modified.png" alt="Logo" class="w-full h-full object-contain">
+        <div id="login-screen" class="min-h-screen bg-gradient-to-br from-[#030d22] via-[#082046] via-[#0d3468] to-[#041635] flex flex-col justify-center items-center px-4 py-10 relative overflow-hidden select-none ${state.isPasswordRecoveryMode ? 'hidden' : ''}">
+          <!-- Efectos luminosos de fondo (Gama de azules innovadora) -->
+          <div class="absolute -top-32 -left-32 w-96 sm:w-[32rem] h-96 sm:h-[32rem] rounded-full bg-blue-500/20 blur-3xl pointer-events-none animate-pulse"></div>
+          <div class="absolute -bottom-32 -right-32 w-[28rem] sm:w-[36rem] h-[28rem] sm:h-[36rem] rounded-full bg-cyan-400/20 blur-3xl pointer-events-none"></div>
+          <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 sm:w-[40rem] h-80 sm:h-[40rem] rounded-full bg-indigo-600/15 blur-[120px] pointer-events-none"></div>
+          <!-- Patrón sutil de cuadrícula tecnológica -->
+          <div class="absolute inset-0 bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:28px_28px] opacity-10 pointer-events-none"></div>
+
+          <!-- Tarjeta de Login / Registro -->
+          <div class="max-w-md w-full bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl shadow-blue-950/70 border border-blue-300/30 overflow-hidden relative z-10 transition-all">
+            <!-- Cabecera de la tarjeta en azul zafiro/marino -->
+            <div class="bg-gradient-to-r from-[#0b2149] via-[#123974] to-[#091b3b] text-white p-7 text-center relative overflow-hidden border-b border-blue-800/40">
+              <div class="absolute inset-x-0 bottom-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent"></div>
+              
+              <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/20 border border-blue-400/30 text-cyan-300 text-[11px] font-bold tracking-wider uppercase mb-3 shadow-inner">
+                <i data-lucide="sparkles" class="w-3 h-3 text-cyan-300"></i>
+                <span>Gestión Integral de Turnos</span>
               </div>
-              <h2 class="text-2xl font-black tracking-tight text-white">Recepcionista Pro</h2>
-              <p class="text-xs text-slate-300 mt-1">Gestión de turnos con base de datos en la nube (Supabase)</p>
+
+              <div class="w-16 h-16 rounded-2xl bg-blue-950/80 p-1.5 mx-auto shadow-xl shadow-blue-950/70 mb-3 flex items-center justify-center border border-cyan-400/40 ring-4 ring-blue-500/15">
+                <img src="https://i.postimg.cc/Yq5ZGfpz/Gemini-Generated-Image-9wbbqy9wbbqy9wbb-modified.png" alt="Logo" class="w-full h-full object-contain drop-shadow">
+              </div>
+              <h2 class="text-2xl font-black tracking-tight text-white drop-shadow-sm">Recepcionista Pro</h2>
+              <p class="text-xs text-blue-200/90 mt-1">Base de datos sincronizada en la nube con Supabase</p>
             </div>
 
             <!-- Pestañas: Iniciar Sesión vs Registrarse -->
-            <div class="flex border-b border-slate-200 bg-slate-50/60">
+            <div class="flex border-b border-blue-100 bg-blue-50/60">
               <button 
                 onclick="setAuthMode('login')"
                 class="flex-1 py-3 text-xs font-bold text-center transition-all cursor-pointer ${
                   state.authMode === 'login' 
                     ? 'bg-white text-blue-700 border-b-2 border-blue-600 shadow-xs' 
-                    : 'text-slate-600 hover:text-slate-900'
+                    : 'text-slate-600 hover:text-blue-900 hover:bg-blue-50/80'
                 }"
               >
                 Iniciar Sesión
@@ -2574,7 +2594,7 @@
                 class="flex-1 py-3 text-xs font-bold text-center transition-all cursor-pointer ${
                   state.authMode === 'signup' 
                     ? 'bg-white text-blue-700 border-b-2 border-blue-600 shadow-xs' 
-                    : 'text-slate-600 hover:text-slate-900'
+                    : 'text-slate-600 hover:text-blue-900 hover:bg-blue-50/80'
                 }"
               >
                 Crear Cuenta Nueva
@@ -2599,13 +2619,15 @@
 
               <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1.5">Correo Electrónico</label>
-                <input 
-                  type="email" 
-                  id="authEmail" 
-                  required 
-                  placeholder="tu-correo@ejemplo.com"
-                  class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <div class="relative">
+                  <input 
+                    type="email" 
+                    id="authEmail" 
+                    required 
+                    placeholder="tu-correo@ejemplo.com"
+                    class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  />
+                </div>
               </div>
 
               <div>
@@ -2628,14 +2650,14 @@
                   id="authPassword" 
                   required 
                   placeholder="••••••••"
-                  class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                 />
               </div>
 
               <button 
                 type="submit" 
                 ${state.authSubmitLoading ? 'disabled' : ''}
-                class="w-full mt-2 py-3 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                class="w-full mt-2 py-3 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-500 hover:via-blue-600 hover:to-indigo-600 active:scale-[0.99] text-white text-sm font-bold rounded-xl shadow-lg shadow-blue-600/30 hover:shadow-blue-600/40 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 ${state.authSubmitLoading ? `
                   <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
@@ -2647,7 +2669,12 @@
               </button>
             </form>
           </div>
-          <p class="mt-6 text-xs text-slate-500 text-center">Conectado con Supabase (tablas <code>recepcion</code> y <code>servicios</code>)</p>
+
+          <!-- Pie del login con datos de conexión y seguridad -->
+          <div class="mt-6 text-center text-xs text-blue-200/80 font-medium relative z-10 flex items-center justify-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>Conectado con Supabase Cloud (tablas <code class="bg-blue-950/60 px-1.5 py-0.5 rounded text-cyan-300 font-mono">recepcion</code> y <code class="bg-blue-950/60 px-1.5 py-0.5 rounded text-cyan-300 font-mono">servicios</code>)</span>
+          </div>
 
           ${renderForgotPasswordModal()}
         </div>
